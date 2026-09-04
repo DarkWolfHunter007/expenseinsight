@@ -1,0 +1,30 @@
+  ## 🏃 Quick Start Guide
+
+  ### 1. Run the FastAPI Backend
+
+    # From the project root:
+    .\.venv\Scripts\Activate.ps1
+    uvicorn backend.app.main:app --reload --port 8000
+
+  • Interactive Swagger API Documentation: http://localhost:8000/docs
+  • Health Check: http://localhost:8000/health
+
+  ### 2. Run the Flutter App
+
+    cd mobile/flutter_app
+
+    # Run on Chrome / Web:
+    flutter run -d chrome
+
+    # Or run natively on Windows Desktop:
+    flutter run -d windows
+
+  ### 3. Generate New Sample Bank Statements
+
+    .\.venv\Scripts\python.exe scripts/generate_sample_statements.py
+
+  Generated sample PDFs:
+
+  • HDFC_6_Month_Statement_2026.pdf
+  • SBI_6_Month_Statement_2026.pdf
+  • ICICI_6_Month_Statement_2026.pdf
