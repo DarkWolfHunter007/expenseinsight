@@ -1,0 +1,31 @@
+# Version Control & IDE
+.git
+.gitignore
+.idea
+.vscode
+.dart_tool
+.flutter-plugins-dependencies
+
+# Source code & non-web platforms
+android/
+ios/
+linux/
+macos/
+windows/
+lib/
+test/
+
+# Non-web build caches
+build/app/
+build/android/
+build/android_file_picker/
+build/native_assets/
+build/jni/
+build/jni_flutter/
+build/shared_preferences_android/
+build/test_cache/
+build/unit_test_assets/
+build/.cxx/
+build/reports/
+build/dc6ae1ceb79c0ca0aae549ee3d3f0424/
+build/*.dill
