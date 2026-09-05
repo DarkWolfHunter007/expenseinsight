@@ -28,7 +28,7 @@ class SpendingMetricCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -38,7 +38,7 @@ class SpendingMetricCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -50,50 +50,64 @@ class SpendingMetricCard extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
                 ),
               ),
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.12),
+                  color: accentColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 18, color: accentColor),
+                child: Icon(icon, size: 16, color: accentColor),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            isCurrency ? currencyFormat.format(amount) : amount.toStringAsFixed(0),
-            style: GoogleFonts.poppins(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              isCurrency ? currencyFormat.format(amount) : amount.toStringAsFixed(0),
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           if (trendPercentage != null)
             Row(
               children: [
                 Icon(
                   trendPercentage! >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                  size: 14,
+                  size: 13,
                   color: trendPercentage! >= 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  '${trendPercentage! >= 0 ? "+" : ""}${trendPercentage!.toStringAsFixed(1)}% vs last month',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: trendPercentage! >= 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                Expanded(
+                  child: Text(
+                    '${trendPercentage! >= 0 ? "+" : ""}${trendPercentage!.toStringAsFixed(1)}% vs last mo',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: trendPercentage! >= 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                    ),
                   ),
                 ),
               ],
@@ -101,8 +115,10 @@ class SpendingMetricCard extends StatelessWidget {
           else if (subtitle != null)
             Text(
               subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
-                fontSize: 11,
+                fontSize: 10,
                 color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
               ),
             ),

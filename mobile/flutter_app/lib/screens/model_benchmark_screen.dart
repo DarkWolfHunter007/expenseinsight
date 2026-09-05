@@ -61,7 +61,7 @@ class ModelBenchmarkScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withOpacity(0.15),
+                              color: const Color(0xFF10B981).withValues(alpha: 0.15),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.psychology_rounded, color: Color(0xFF10B981), size: 24),
@@ -246,11 +246,11 @@ class ModelBenchmarkScreen extends StatelessWidget {
                               ? null
                               : () async {
                                   final ok = await provider.retrainModel();
-                                  if (context.mounted && ok) {
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Model successfully retrained!'),
-                                        backgroundColor: Color(0xFF10B981),
+                                      SnackBar(
+                                        content: Text(ok ? 'Model successfully retrained!' : 'Failed to retrain model. Ensure backend is reachable.'),
+                                        backgroundColor: ok ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                                         behavior: SnackBarBehavior.floating,
                                       ),
                                     );

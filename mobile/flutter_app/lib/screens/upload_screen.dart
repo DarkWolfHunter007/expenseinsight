@@ -3,13 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../config/bank_branding.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/forecast_provider.dart';
 import '../providers/statement_provider.dart';
 import '../providers/transaction_provider.dart';
 
-class UploadScreen extends StatelessWidget {
+class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
+
+  @override
+  State<UploadScreen> createState() => _UploadScreenState();
+}
+
+class _UploadScreenState extends State<UploadScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<StatementProvider>(context, listen: false).fetchStatements();
+    });
+  }
 
   Future<void> _pickAndUploadPDF(BuildContext context) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -18,25 +32,49 @@ class UploadScreen extends StatelessWidget {
     final analyticsProv = Provider.of<AnalyticsProvider>(context, listen: false);
     final forecastProv = Provider.of<ForecastProvider>(context, listen: false);
 
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
+    try {
+      final results = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
 
-    if (result.isNotEmpty) {
-      final file = result.first;
-      final success = await stmtProv.uploadStatementFile(file);
+      if (results.isNotEmpty) {
+        final file = results.first;
+        final success = await stmtProv.uploadStatementFile(file);
 
-      if (success) {
-        await txnProv.fetchTransactions();
-        await analyticsProv.fetchAnalytics();
-        await forecastProv.fetchForecast();
+        if (success) {
+          await stmtProv.fetchStatements();
+          await txnProv.fetchTransactions();
+          await analyticsProv.fetchAnalytics();
+          await forecastProv.fetchForecast();
 
+          if (mounted) {
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                content: Text('Statement "${file.name}" uploaded and parsed successfully!'),
+                backgroundColor: const Color(0xFF10B981),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                content: Text(stmtProv.errorMessage ?? 'Failed to upload statement.'),
+                backgroundColor: const Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Statement processed successfully!'),
-            backgroundColor: Color(0xFF10B981),
+          SnackBar(
+            content: Text('File selection error: $e'),
+            backgroundColor: const Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -54,17 +92,116 @@ class UploadScreen extends StatelessWidget {
     final success = await stmtProv.seedSampleStatement(bank: bank);
 
     if (success) {
+      await stmtProv.fetchStatements();
       await txnProv.fetchTransactions();
       await analyticsProv.fetchAnalytics();
       await forecastProv.fetchForecast();
 
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('$bank 6-Month Statement ingested successfully!'),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('$bank 6-Month Statement ingested successfully!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteStatement(BuildContext context, dynamic statement) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFEF4444), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Delete Statement?',
+                style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         ),
-      );
+        content: Text(
+          'Are you sure you want to delete "${statement.fileName}"?\n\nThis will permanently remove this statement and its ${statement.totalTransactions} extracted transactions from your analytics.',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: isDark ? Colors.white70 : const Color(0xFF475569),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      final stmtProv = Provider.of<StatementProvider>(context, listen: false);
+      final txnProv = Provider.of<TransactionProvider>(context, listen: false);
+      final analyticsProv = Provider.of<AnalyticsProvider>(context, listen: false);
+      final forecastProv = Provider.of<ForecastProvider>(context, listen: false);
+
+      final success = await stmtProv.deleteStatement(statement.id);
+      if (success) {
+        await stmtProv.fetchStatements();
+        await Future.wait([
+          txnProv.fetchTransactions(),
+          analyticsProv.fetchAnalytics(),
+          forecastProv.fetchForecast(),
+        ]);
+
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('Statement "${statement.fileName}" deleted successfully.'),
+              backgroundColor: const Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(stmtProv.errorMessage ?? 'Failed to delete statement.'),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -104,7 +241,7 @@ class UploadScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.15),
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.cloud_upload_rounded, color: Color(0xFF10B981), size: 28),
@@ -149,7 +286,7 @@ class UploadScreen extends StatelessWidget {
                       color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF10B981).withOpacity(0.6),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.6),
                         style: BorderStyle.solid,
                         width: 1.5,
                       ),
@@ -191,7 +328,7 @@ class UploadScreen extends StatelessWidget {
                       color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF10B981).withOpacity(0.3),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Column(
@@ -290,6 +427,7 @@ class UploadScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   ...provider.statements.map((s) {
+                    final branding = BankBranding.fromName(s.bankName);
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(14),
@@ -302,14 +440,33 @@ class UploadScreen extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 24),
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: branding.primaryColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                branding.shortCode.substring(0, branding.shortCode.length.clamp(1, 4)),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  s.bankName,
+                                  branding.name.endsWith('Bank') || branding.name.endsWith('Statement')
+                                      ? branding.name
+                                      : '${branding.name} Bank',
                                   style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
                                 ),
                                 Text(
@@ -322,7 +479,7 @@ class UploadScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withOpacity(0.12),
+                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -333,6 +490,14 @@ class UploadScreen extends StatelessWidget {
                                 color: const Color(0xFF10B981),
                               ),
                             ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 20),
+                            tooltip: 'Delete statement',
+                            onPressed: () => _confirmDeleteStatement(context, s),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           ),
                         ],
                       ),
@@ -399,7 +564,7 @@ class UploadScreen extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(Icons.account_balance_rounded, color: color, size: 20),

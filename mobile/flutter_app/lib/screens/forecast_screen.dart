@@ -36,11 +36,46 @@ class ForecastScreen extends StatelessWidget {
             );
           }
 
-          if (forecast == null) {
+          if (forecast == null || forecast.historicalMonthsCount == 0 || forecast.totalForecast == 0.0) {
             return Center(
-              child: Text(
-                'No forecast data available. Please upload a bank statement.',
-                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 48,
+                        color: Color(0xFF8B5CF6),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'No Forecast Data Available',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Upload at least 1-3 months of bank statements to unlock AI-powered spending forecasts and predictive category budgets.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -56,9 +91,9 @@ class ForecastScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withOpacity(0.12),
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -103,7 +138,7 @@ class ForecastScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
@@ -127,7 +162,7 @@ class ForecastScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -156,7 +191,7 @@ class ForecastScreen extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                       ),
                     ],

@@ -137,6 +137,7 @@ class AnalyticsSummaryResponse(BaseModel):
     average_daily_spend: float
     total_transactions_count: int
     statement_period: Optional[str] = None
+    bank_name: Optional[str] = "Bank Statement"
     categories_breakdown: List[CategorySpendingItem]
     top_merchants: List[MerchantSpendingItem]
     recurring_expenses: List[RecurringExpenseItem]

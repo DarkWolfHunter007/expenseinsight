@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: expenseinsight-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/expenseinsight.db
+      - MODEL_PATH=/app/backend/ml/models/expense_classifier.joblib
+      - METRICS_PATH=/app/backend/ml/models/model_metrics.json
+      - UPLOADS_DIR=/app/data/uploads
+      - SAMPLE_STATEMENTS_DIR=/app/backend/sample_statements
+      - OFFLINE_TRAINING_MODE=true
+    volumes:
+      # Persistent storage for SQLite database and uploaded PDF statements
+      - ./data:/app/data
+      # Mount host-trained model artifacts read-only for hot-swapping weights without image rebuilds
+      - ./backend/ml/models:/app/backend/ml/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - expenseinsight-network
+
+  frontend:
+    build:
+      context: ./mobile/flutter_app
+      dockerfile: Dockerfile
+    container_name: expenseinsight-frontend
+    ports:
+      - "80:80"
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - expenseinsight-network
+
+networks:
+  expenseinsight-network:
+    driver: bridge
+

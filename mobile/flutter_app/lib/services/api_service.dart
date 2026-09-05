@@ -26,6 +26,21 @@ class ApiService {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
+    final savedUrl = prefs.getString('custom_base_url');
+    if (savedUrl != null && savedUrl.isNotEmpty) {
+      ApiConstants.setCustomBaseUrl(savedUrl);
+    }
+  }
+
+  Future<void> updateBaseUrl(String? newUrl) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (newUrl != null && newUrl.trim().isNotEmpty) {
+      ApiConstants.setCustomBaseUrl(newUrl);
+      await prefs.setString('custom_base_url', ApiConstants.baseUrl);
+    } else {
+      ApiConstants.setCustomBaseUrl(null);
+      await prefs.remove('custom_base_url');
+    }
   }
 
   Future<void> setToken(String? token) async {
@@ -42,6 +57,8 @@ class ApiService {
     final map = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'X-Tunnel-Skip-Anti-Abuse-Header': 'true',
+      'ngrok-skip-browser-warning': 'true',
     };
     if (_token != null && _token!.isNotEmpty) {
       map['Authorization'] = 'Bearer $_token';
@@ -121,30 +138,70 @@ class ApiService {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.uploadStatements}');
       final request = http.MultipartRequest('POST', url);
-      if (_token != null) {
+      if (_token != null && _token!.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $_token';
       }
+      request.headers['Accept'] = 'application/json';
+      request.headers['X-Tunnel-Skip-Anti-Abuse-Header'] = 'true';
+      request.headers['ngrok-skip-browser-warning'] = 'true';
 
-      if (kIsWeb || file.path == null) {
-        final bytes = await file.readAsBytes();
-        request.files.add(http.MultipartFile.fromBytes('files', bytes, filename: file.name));
+      final Uint8List fileBytes = await file.xFile.readAsBytes();
+      if (fileBytes.isNotEmpty) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'files',
+          fileBytes,
+          filename: file.name,
+        ));
+      } else if (file.path != null && !kIsWeb) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'files',
+          file.path!,
+          filename: file.name,
+        ));
       } else {
-        request.files.add(await http.MultipartFile.fromPath('files', file.path!, filename: file.name));
+        throw Exception("Could not read statement bytes from selected file '${file.name}'.");
       }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         final List<dynamic> list = json.decode(response.body);
         if (list.isNotEmpty) {
+          isUsingMockFallback = false;
           return StatementModel.fromJson(list.first);
         }
+      } else {
+        String errMsg = 'Upload failed (HTTP ${response.statusCode})';
+        try {
+          final errBody = json.decode(response.body);
+          if (errBody is Map && errBody.containsKey('detail')) {
+            errMsg = errBody['detail'].toString();
+          }
+        } catch (_) {}
+        throw Exception(errMsg);
       }
     } catch (e) {
       debugPrint('API Error (uploadStatement): $e');
+      rethrow;
     }
     return null;
+  }
+
+  Future<bool> deleteStatement(String statementId) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.listStatements}/$statementId');
+      final response = await http.delete(url, headers: _headers).timeout(const Duration(seconds: 6));
+      if (response.statusCode == 200) {
+        return true;
+      }
+    } catch (e) {
+      debugPrint('API Error (deleteStatement): $e');
+    }
+    if (isUsingMockFallback) {
+      return true;
+    }
+    return false;
   }
 
   // ----------------- Transactions -----------------
@@ -270,11 +327,11 @@ class ApiService {
   Future<bool> retrainModel() async {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.modelRetrain}');
-      final response = await http.post(url, headers: _headers).timeout(const Duration(seconds: 25));
+      final response = await http.post(url, headers: _headers).timeout(const Duration(seconds: 60));
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('API Error (retrainModel): $e');
-      return true;
+      return false;
     }
   }
 }

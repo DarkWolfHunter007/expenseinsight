@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/analytics_provider.dart';
 import '../providers/forecast_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../widgets/bank_statement_header.dart';
 import '../widgets/category_donut_chart.dart';
+import '../widgets/install_guide_dialog.dart';
 import '../widgets/merchant_ranking_card.dart';
 import '../widgets/monthly_trend_chart.dart';
 import '../widgets/recurring_subscriptions_card.dart';
+import '../widgets/server_settings_dialog.dart';
 import '../widgets/spending_metric_card.dart';
 import 'review_uncertain_screen.dart';
 
@@ -39,6 +41,16 @@ class DashboardScreen extends StatelessWidget {
             title: const Text('ExpenseInsight'),
             actions: [
               IconButton(
+                onPressed: () => InstallGuideDialog.show(context),
+                icon: const Icon(Icons.install_mobile_rounded),
+                tooltip: 'Install App (PWA)',
+              ),
+              IconButton(
+                onPressed: () => ServerSettingsDialog.show(context),
+                icon: const Icon(Icons.cloud_outlined),
+                tooltip: 'Server Connection',
+              ),
+              IconButton(
                 onPressed: () {
                   analyticsProv.fetchAnalytics();
                   forecastProv.fetchForecast();
@@ -61,34 +73,13 @@ class DashboardScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Statement Period Badge
-                  if (summary?.statementPeriod != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_month_rounded, size: 14, color: isDark ? Colors.white60 : Colors.black54),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Period: ${summary!.statementPeriod}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '${summary.totalTransactionsCount} txns',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF10B981),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  // Dynamic Bank Statement Hero Header
+                  BankStatementHeader(
+                    bankName: summary?.bankName ?? 'Bank Statement',
+                    statementPeriod: summary?.statementPeriod,
+                    transactionCount: summary?.totalTransactionsCount ?? 0,
+                  ),
+                  const SizedBox(height: 16),
 
                   // Uncertain Transactions Alert Banner (PRD Section 20)
                   if (uncertainCount > 0) ...[
@@ -158,7 +149,7 @@ class DashboardScreen extends StatelessWidget {
                         mainAxisSpacing: 12,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: isWide ? 1.4 : 1.3,
+                        childAspectRatio: isWide ? 1.35 : 1.1,
                         children: [
                           SpendingMetricCard(
                             title: 'Total Spent',

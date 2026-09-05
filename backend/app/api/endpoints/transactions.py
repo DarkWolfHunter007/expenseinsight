@@ -75,7 +75,8 @@ def get_uncertain_transactions(
 
     suggested = [
         "Food", "Shopping", "Travel", "Bills", "Entertainment",
-        "Groceries", "Fuel", "Healthcare", "Rent", "Other"
+        "Groceries", "Fuel", "Healthcare", "Rent", "Personal Care",
+        "Education", "Investments", "Other", "Uncategorized"
     ]
 
     results = []
@@ -161,3 +162,55 @@ def update_transaction_category(
     db.commit()
     db.refresh(txn)
     return txn
+
+
+@router.delete("/{transaction_id}")
+def delete_transaction(
+    transaction_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Deletes a single transaction and cascades to its corrections and forecast update."""
+    from ...models.db_models import CategoryCorrection, Forecast
+    from ...services.forecasting_service import ForecastingService
+
+    txn = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+
+    db.query(CategoryCorrection).filter(CategoryCorrection.transaction_id == transaction_id).delete(synchronize_session=False)
+    db.delete(txn)
+    db.commit()
+
+    # Re-evaluate forecasts
+    remaining_count = db.query(Transaction).filter(Transaction.user_id == current_user.id).count()
+    if remaining_count == 0:
+        db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
+        db.commit()
+    else:
+        try:
+            ForecastingService(db=db).generate_user_forecast(user_id=current_user.id, persist=True)
+        except Exception:
+            pass
+
+    return {"status": "success", "message": "Transaction deleted."}
+
+
+@router.delete("")
+def delete_all_transactions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Purges all user transactions, category corrections, and forecasts."""
+    from ...models.db_models import CategoryCorrection, Forecast
+
+    db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(Transaction).filter(Transaction.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
+    db.commit()
+
+    return {"status": "success", "message": "All transactions purged."}
+

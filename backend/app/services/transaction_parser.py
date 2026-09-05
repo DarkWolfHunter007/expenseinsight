@@ -231,6 +231,143 @@ class TransactionParser:
 
         return transactions
 
+    HEADER_FILTER_PATTERNS = [
+        r'^(?:date|particulars|deposits?|withdrawals?|balance|chq|ref|utr|narration|details|description|value dt|txn dt)\b',
+        r'^(?:statement\s+for|customer\s+id|name|phone|address|branch|product|ifsc|a/c\s+no|account\s+no)\b',
+        r'^(?:page\s*\d+|---\s*Page|\d+\s*of\s*\d+)',
+        r'^(?:opening\s*balance|closing\s*balance|total\s*withdrawals|total\s*deposits|brought\s*forward)',
+        r'^(?:the\s+banking\s+ombudsman|emails?\s+etc|are\s+you\s+a\s+merchant|use\s+digital\s+payment|contact\s+branch|computer\s+output|[-=\s_]*end\s+of\s+statement|\*+\s*end\s*of\s*statement)',
+        r'(?:c/o\.?\s*rbi|ombudsman|bobangalore|e-mail:|receive\s+payment\s+from\s+your)'
+    ]
+
+    def parse_from_blocks(self, full_text: str) -> List[Dict[str, Any]]:
+        """
+        Parses transactions from multi-line statement blocks where transactions span
+        multiple lines between date headers (common in e-passbooks, borderless multi-page statements).
+        """
+        date_pat = r'^(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{2,4}|\d{1,2}[-/\.](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/\.]\d{2,4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})'
+        date_regex = re.compile(date_pat, re.IGNORECASE)
+
+        lines = full_text.splitlines()
+        blocks: List[Tuple[str, List[str]]] = []
+        current_date: Optional[str] = None
+        current_lines: List[str] = []
+
+        for line in lines:
+            s = line.strip()
+            if not s:
+                continue
+            m = date_regex.match(s)
+            if m:
+                if current_date and current_lines:
+                    blocks.append((current_date, current_lines))
+                current_date = m.group(1)
+                rest = s[m.end():].strip()
+                current_lines = [rest] if rest else []
+            elif current_date:
+                current_lines.append(s)
+
+        if current_date and current_lines:
+            blocks.append((current_date, current_lines))
+
+        parsed_transactions = []
+        seen_keys: Set[str] = set()
+
+        for dt_str, blk_lines in blocks:
+            norm_date = self._normalize_date(dt_str)
+            if not norm_date:
+                continue
+
+            # Filter out recurring header/metadata noise from lines
+            filtered_lines = []
+            for l in blk_lines:
+                s_line = l.strip()
+                if not s_line:
+                    continue
+                if any(re.search(pat, s_line, re.IGNORECASE) for pat in self.HEADER_FILTER_PATTERNS):
+                    continue
+                filtered_lines.append(s_line)
+
+            combined_text = " ".join(filtered_lines)
+            if not combined_text:
+                continue
+
+            # Ignore opening/closing balance rows
+            if any(ign in combined_text.lower() for ign in ["opening balance", "closing balance", "brought forward"]):
+                continue
+
+            # Extract decimal amounts
+            amounts = re.findall(r'(?<!\d)(\d{1,3}(?:,\d{3})*\.\d{2})(?!\d)', combined_text)
+            if not amounts:
+                amounts = re.findall(r'(?<!\d)(\d+(?:\.\d{2})?)(?!\d)', combined_text)
+
+            if not amounts:
+                continue
+
+            # Extract Reference / Cheque / UTR number
+            ref_match = re.search(r'(?:Chq|Ref|UTR|RRN|Txn\s*ID)[:\s]*([A-Za-z0-9]+)', combined_text, re.IGNORECASE)
+            if not ref_match:
+                ref_match = re.search(r'UPI/[A-Z]+/([0-9]{8,16})/', combined_text)
+            ref_num = ref_match.group(1) if ref_match else None
+
+            # Determine CR / DR
+            if "UPI/CR/" in combined_text:
+                cr_dr = "CR"
+            elif "UPI/DR/" in combined_text:
+                cr_dr = "DR"
+            elif re.search(r'\b(?:CR|CREDIT|DEPOSITS?|SALARY|REFUND|INTEREST)\b', combined_text, re.IGNORECASE):
+                cr_dr = "CR"
+            else:
+                cr_dr = "DR"
+
+            # Identify transaction amount and balance
+            if len(amounts) >= 2:
+                amt_val = self._parse_amount(amounts[0])
+                bal_val = self._parse_amount(amounts[-1])
+            else:
+                amt_val = self._parse_amount(amounts[0])
+                bal_val = None
+
+            if not amt_val or amt_val <= 0:
+                continue
+
+            # Clean raw description by removing amounts, page numbers, and reference tags
+            desc_lines = []
+            for l in filtered_lines:
+                if re.match(r'^(?:page\s*\d+|---\s*Page|\d+\s*of\s*\d+)', l, re.IGNORECASE):
+                    continue
+                cleaned_l = l
+                for a in amounts:
+                    cleaned_l = cleaned_l.replace(a, '')
+                if ref_num:
+                    cleaned_l = re.sub(r'Chq:\s*' + re.escape(ref_num), '', cleaned_l, flags=re.IGNORECASE)
+                cleaned_l = cleaned_l.strip()
+                if cleaned_l:
+                    desc_lines.append(cleaned_l)
+
+            raw_desc = " ".join(desc_lines).strip()
+            if not raw_desc:
+                raw_desc = combined_text[:60]
+
+            txn_type = self._determine_txn_type(raw_desc, "income" if cr_dr == "CR" else "expense")
+            dup_key = f"{norm_date}_{amt_val:.2f}_{cr_dr}_{raw_desc[:30]}"
+            is_duplicate = dup_key in seen_keys
+            seen_keys.add(dup_key)
+
+            parsed_transactions.append({
+                "date": norm_date,
+                "raw_description": raw_desc,
+                "amount": round(amt_val, 2),
+                "currency": "INR",
+                "transaction_type": txn_type,
+                "cr_dr": cr_dr,
+                "balance": round(bal_val, 2) if bal_val is not None else None,
+                "reference_number": ref_num,
+                "is_duplicate": is_duplicate
+            })
+
+        return parsed_transactions
+
     def _determine_txn_type(self, description: str, default_type: str) -> str:
         """Categorizes transaction into income, expense, transfer, or cash_withdrawal (PRD Section 44)."""
         d = description.upper()
@@ -243,11 +380,21 @@ class TransactionParser:
         return default_type
 
     def parse(self, extraction_result: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Runs table extraction first, falls back to text parsing if needed."""
-        txns = self.parse_from_tables(extraction_result.get("raw_tables", []))
-        if len(txns) >= 5:
-            return txns
-        
-        # Fallback to text parsing
-        text_txns = self.parse_from_text_lines(extraction_result.get("full_text", ""))
-        return text_txns if len(text_txns) > len(txns) else txns
+        """
+        Orchestrates multi-strategy transaction extraction:
+        1. Structured Table Parsing (grid-based PDFs)
+        2. Date-Block Multi-Line Parsing (borderless / e-passbook / multi-page PDFs)
+        3. Line-by-Line Regex Parsing (simple statements)
+        Selects the most comprehensive and accurate transaction list.
+        """
+        table_txns = self.parse_from_tables(extraction_result.get("raw_tables", []))
+        if len(table_txns) >= 5:
+            return table_txns
+
+        full_text = extraction_result.get("full_text", "")
+        block_txns = self.parse_from_blocks(full_text)
+        line_txns = self.parse_from_text_lines(full_text)
+
+        candidates = [table_txns, block_txns, line_txns]
+        best_candidate = max(candidates, key=lambda txns: len(txns))
+        return best_candidate

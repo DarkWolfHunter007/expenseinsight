@@ -61,9 +61,12 @@ class TransactionTile extends StatelessWidget {
                     runSpacing: 8,
                     children: CategoryColors.allCategories.map((cat) {
                       final meta = CategoryColors.getMeta(cat);
-                      final isSelected = transaction.category.toLowerCase() == cat.toLowerCase();
+                      final isSelected = (transaction.needsReview && (cat == 'Uncategorized' || cat == 'Other')) ||
+                          transaction.category.toLowerCase() == cat.toLowerCase();
 
                       return ChoiceChip(
+                        showCheckmark: true,
+                        checkmarkColor: isSelected ? Colors.white : meta.color,
                         label: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -74,6 +77,7 @@ class TransactionTile extends StatelessWidget {
                         ),
                         selected: isSelected,
                         selectedColor: meta.color,
+                        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
                         labelStyle: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -133,21 +137,23 @@ class TransactionTile extends StatelessWidget {
     DateTime? txnDate = DateTime.tryParse(transaction.date);
     final formattedDate = txnDate != null ? DateFormat('MMM dd, yyyy').format(txnDate) : transaction.date;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: transaction.needsReview
-              ? const Color(0xFFEF4444).withOpacity(0.5)
-              : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-          width: transaction.needsReview ? 1.5 : 1.0,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: transaction.needsReview
+                ? const Color(0xFFEF4444).withValues(alpha: 0.5)
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            width: transaction.needsReview ? 1.5 : 1.0,
+          ),
         ),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           leading: Container(
             width: 44,
@@ -198,7 +204,7 @@ class TransactionTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: meta.color.withOpacity(0.12),
+                    color: meta.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -222,7 +228,7 @@ class TransactionTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Column(
@@ -256,8 +262,9 @@ class TransactionTile extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _detailRow(String label, String value, bool isDark) {
     return Row(

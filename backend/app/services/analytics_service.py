@@ -102,6 +102,9 @@ class AnalyticsService:
         top_merchants = self.get_merchant_spending(user_id)[:10]
         # Recurring Expenses
         recurring = self.get_recurring_expenses(user_id)
+        # Fetch active bank name from latest statement
+        latest_stmt = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).first()
+        bank_name = latest_stmt.bank_name if latest_stmt and latest_stmt.bank_name else "Bank Statement"
 
         return {
             "total_expense": round(total_expense, 2),
@@ -114,6 +117,7 @@ class AnalyticsService:
             "average_daily_spend": avg_daily,
             "total_transactions_count": len(df),
             "statement_period": period_str,
+            "bank_name": bank_name,
             "categories_breakdown": categories_breakdown,
             "top_merchants": top_merchants,
             "recurring_expenses": recurring

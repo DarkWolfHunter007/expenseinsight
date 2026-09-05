@@ -1,0 +1,36 @@
+# Version Control
+.git
+.gitignore
+
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & uploads
+expenseinsight.db
+data/
+uploads/
+backend/uploads/
+
+# ML Training package (standalone training only, decoupled from Docker inference container)
+ml_training/
+
+# Flutter Mobile & Web Client (built separately or mounted)
+mobile/
+
+
+# Environment files & OS files
+.env
+.env.*
+.DS_Store
+Thumbs.db

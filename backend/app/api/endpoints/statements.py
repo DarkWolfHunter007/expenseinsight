@@ -15,7 +15,8 @@ from pathlib import Path
 router = APIRouter()
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
-UPLOAD_DIR = str(BACKEND_DIR / "uploads")
+UPLOAD_DIR = os.getenv("UPLOADS_DIR", str(BACKEND_DIR / "uploads"))
+SAMPLE_STATEMENTS_DIR = os.getenv("SAMPLE_STATEMENTS_DIR", str(BACKEND_DIR / "sample_statements"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/upload", response_model=List[StatementResponse])
@@ -148,20 +149,78 @@ def delete_statement(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Deletes statement and associated transactions."""
+    """
+    Deletes statement and all associated transactions, category corrections, forecasts, and disk files without leaving residue.
+    """
+    from ...models.db_models import CategoryCorrection, Forecast
+    from ...services.forecasting_service import ForecastingService
+
     stmt = db.query(Statement).filter(Statement.id == statement_id, Statement.user_id == current_user.id).first()
     if not stmt:
         raise HTTPException(status_code=404, detail="Statement not found.")
 
+    # 1. Remove physical file from disk
     if stmt.file_path and os.path.exists(stmt.file_path):
         try:
             os.remove(stmt.file_path)
         except Exception:
             pass
 
+    # 2. Delete child category corrections & transactions
+    stmt_txns = db.query(Transaction).filter(Transaction.statement_id == statement_id).all()
+    txn_ids = [t.id for t in stmt_txns]
+    if txn_ids:
+        db.query(CategoryCorrection).filter(CategoryCorrection.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
+        db.query(Transaction).filter(Transaction.statement_id == statement_id).delete(synchronize_session=False)
+
+    # 3. Delete statement itself
     db.delete(stmt)
     db.commit()
-    return {"status": "success", "message": "Statement and associated data deleted."}
+
+    # 4. Synchronize user forecasts & corrections
+    remaining_txns_count = db.query(Transaction).filter(Transaction.user_id == current_user.id).count()
+    if remaining_txns_count == 0:
+        # Zero transactions remaining -> clear all forecasts and corrections
+        db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
+        db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).delete(synchronize_session=False)
+        db.commit()
+    else:
+        # Recompute forecast with remaining transactions
+        forecasting_service = ForecastingService(db=db)
+        try:
+            forecasting_service.generate_user_forecast(user_id=current_user.id, persist=True)
+        except Exception:
+            pass
+
+    return {"status": "success", "message": "Statement and all associated transactions and forecasts purged successfully."}
+
+
+@router.delete("")
+def delete_all_statements(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Completely purges all statements, transactions, category corrections, forecasts, and files for current user (Factory Reset).
+    """
+    from ...models.db_models import CategoryCorrection, Forecast
+
+    stmts = db.query(Statement).filter(Statement.user_id == current_user.id).all()
+    for s in stmts:
+        if s.file_path and os.path.exists(s.file_path):
+            try:
+                os.remove(s.file_path)
+            except Exception:
+                pass
+
+    db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(Transaction).filter(Transaction.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(Statement).filter(Statement.user_id == current_user.id).delete(synchronize_session=False)
+    db.commit()
+
+    return {"status": "success", "message": "All user statements, transactions, and predictive forecasts purged."}
+
 
 
 @router.post("/seed-sample", response_model=StatementResponse)
@@ -173,7 +232,7 @@ def seed_sample_statement(
     """
     1-Click Ingestion of a realistic 6-month sample bank statement for instant testing.
     """
-    sample_dir = str(BACKEND_DIR / "sample_statements")
+    sample_dir = SAMPLE_STATEMENTS_DIR
     
     bank_files = {
         "HDFC Bank": "HDFC_6_Month_Statement_2026.pdf",
@@ -184,8 +243,14 @@ def seed_sample_statement(
     sample_path = os.path.join(sample_dir, filename)
 
     if not os.path.exists(sample_path):
-        from scripts.generate_sample_statements import generate_all_samples
-        generate_all_samples()
+        try:
+            from ml_training.scripts.generate_sample_statements import generate_all_samples
+            generate_all_samples()
+        except Exception as e:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sample statement for '{bank}' not found and could not be generated: {e}"
+            )
 
     file_id = str(uuid.uuid4())
     dest_path = os.path.join(UPLOAD_DIR, f"{file_id}_{filename}")

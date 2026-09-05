@@ -11,7 +11,7 @@ from backend.app.database.session import Base, engine, get_db
 from backend.app.models.db_models import Merchant, User
 from backend.app.api.api import api_router
 from backend.app.api.endpoints import analytics, auth, forecast, model, statements, transactions
-from ml.preprocessing.merchant_normalizer import DEFAULT_MERCHANT_KB
+from backend.ml.preprocessing.merchant_normalizer import DEFAULT_MERCHANT_KB
 
 # Create all database tables
 Base.metadata.create_all(bind=engine)
@@ -41,7 +41,7 @@ app.include_router(forecast.router, prefix="/forecast", tags=["Forecast"])
 app.include_router(model.router, prefix="/model", tags=["ML Model"])
 
 # Mount sample statements and uploads directory
-samples_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sample_statements"))
+samples_dir = os.getenv("SAMPLE_STATEMENTS_DIR", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sample_statements")))
 if os.path.exists(samples_dir):
     app.mount("/static/samples", StaticFiles(directory=samples_dir), name="samples")
 
@@ -98,3 +98,9 @@ def seed_demo_data(db: Session = Depends(get_db)):
         "total_transactions": stmt.total_transactions,
         "user_email": demo_user.email
     }
+
+# Mount Progressive Web App (PWA) build if available
+web_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "mobile", "flutter_app", "build", "web"))
+if os.path.exists(web_dir):
+    app.mount("/", StaticFiles(directory=web_dir, html=True), name="pwa")
+

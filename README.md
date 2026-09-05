@@ -9,13 +9,13 @@
 ```
 Bank Statement PDF (Single or 6-Month Multi-Statement)
         ↓
-[1] PDF Text Extraction & Tabular Parser (pdfplumber + pypdf)
+[1] PDF Text Extraction & Tabular Parser (PyMuPDF fitz + pdfplumber)
         ↓
 [2] Merchant Normalization Layer (4-Layer: Regex -> Alias Dictionary -> Fuzzy RapidFuzz -> User Feedback)
         ↓
-[3] NLP Preprocessing & Feature Extraction (TF-IDF 1-3 N-Grams)
+[3] NLP Preprocessing & Feature Extraction (Sentence-Transformers all-MiniLM-L6-v2 / TF-IDF N-Grams)
         ↓
-[4] Supervised ML Categorizer (Calibrated Logistic Regression & LinearSVC)
+[4] Supervised ML Categorizer (Calibrated Support Vector Machine - LinearSVC)
         ↓
 [5] Confidence & Uncertainty Evaluation (>=85% High, 60-84% Medium, <60% Low Review Deck)
         ↓
@@ -23,9 +23,10 @@ Bank Statement PDF (Single or 6-Month Multi-Statement)
         ↓
 [7] Spending Analytics Engine (Total, Monthly MoM Trends, Category Donut, Top Merchants, Subscriptions)
         ↓
-[8] Time-Series Expense Forecasting (Holt-Winters Exponential Smoothing + 90% Confidence Intervals)
+[8] Time-Series Expense Forecasting (Statsmodels ARIMA + 90% Confidence Intervals)
         ↓
 [9] Flutter Cross-Platform Dashboard (Mobile, Web, Desktop)
+
 ```
 
 ---
@@ -37,53 +38,71 @@ expenseinsight/
 │
 ├── ExpenseInsight_PRD.md           # Product Requirements Document
 ├── README.md                       # Comprehensive Guide & Documentation
+├── Dockerfile                      # Production Backend Container Image
+├── docker-compose.yml              # Production Docker Compose Orchestration
 │
-├── backend/
+├── backend/                        # 🚀 Production Backend & Inference Service
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── endpoints/          # Auth, Statements, Transactions, Analytics, Forecast, Model
 │   │   │   ├── deps.py             # JWT Token Auth & Guest Session Management
 │   │   │   └── api.py              # Central Router
 │   │   ├── database/               # SQLAlchemy ORM Session & Engine
-│   │   ├── models/                 # DB Models (User, Statement, Transaction, Forecast, etc.) & Pydantic Schemas
-│   │   ├── services/               # PDF Extractor, Transaction Parser, Analytics, Forecaster, Pipeline
-│   │   └── main.py                 # FastAPI Application
+│   │   ├── models/                 # DB Models (User, Statement, Transaction, Forecast, etc.) & Schemas
+│   │   ├── services/               # PDF Extractor, Parser, Analytics, Forecaster, Pipeline
+│   │   └── main.py                 # FastAPI Application Entrypoint
+│   ├── ml/                         # Production Inference ML Modules & Model Weights
+│   │   ├── categorization/         # ExpenseClassifier & HybridCategorizer
+│   │   ├── forecasting/            # Holt-Winters Time-Series Forecaster
+│   │   ├── preprocessing/          # 4-Layer Merchant Normalizer & Text Cleaner
+│   │   └── models/                 # Serialized Model Artifacts (expense_classifier.joblib, model_metrics.json)
 │   ├── sample_statements/          # Realistic 6-Month HDFC, SBI, ICICI bank statement PDFs
 │   ├── tests/                      # Pytest Unit & Integration Tests (100% Passing)
-│   └── requirements.txt            # Python Dependencies
+│   └── requirements.txt            # Production Python Dependencies
 │
-├── ml/
-│   ├── datasets/                   # Synthetic Dataset Generator (10,000+ realistic multi-bank records)
-│   ├── preprocessing/              # Text Cleaner & 4-Layer Merchant Normalizer
-│   ├── categorization/             # TF-IDF Classifier & Hybrid Categorizer
-│   ├── forecasting/                # Time-Series Forecaster (Exponential Smoothing & ARIMA)
+├── ml_training/                    # 🧪 Decoupled Offline ML Training Pipeline
+│   ├── datasets/                   # Synthetic Dataset Generator (10,000+ multi-bank records)
 │   ├── evaluation/                 # Metrics Evaluator (Accuracy, Macro F1, Confusion Matrix, MAE/MAPE)
-│   └── models/                     # Serialized Model Artifacts & Evaluation JSON Metadata
+│   ├── scripts/
+│   │   ├── train_classifier.py     # Trains ML models & exports weights to backend/ml/models/
+│   │   ├── evaluate_classifier.py  # Runs in-depth edge-case and confusion matrix evaluation
+│   │   ├── evaluate_forecaster.py  # Backtests forecasting models and computes MAE/MAPE
+│   │   └── generate_sample_statements.py # Generates realistic 6-month statement PDFs
+│   ├── requirements-training.txt   # Training & evaluation dependencies
+│   └── README.md                   # ML Training Documentation & Guide
 │
-├── mobile/
-│   └── flutter_app/                # Flutter Cross-Platform Client Application
-│       ├── lib/
-│       │   ├── config/             # Theme, Category Colors, API Endpoints
-│       │   ├── models/             # Dart Data Models
-│       │   ├── providers/          # State Management (Auth, Statement, Transaction, Analytics, Forecast, Model)
-│       │   ├── services/           # HTTP API Client & Offline Mock Fallback Service
-│       │   ├── widgets/            # Metric Cards, Donut Charts, Trend Splines, Transaction Tiles, Badges
-│       │   ├── screens/            # Onboarding, Dashboard, Upload & Stepper, Transactions, Review, Forecast, Benchmark
-│       │   └── main.dart           # App Entrypoint & MultiProvider
-│       └── test/                   # Flutter Widget & Integration Smoke Tests
-│
-└── scripts/
-    ├── train_classifier.py         # Trains and benchmarks ML models on 10,000 samples
-    ├── evaluate_classifier.py      # Runs in-depth edge-case and confusion matrix evaluation
-    ├── evaluate_forecaster.py      # Backtests forecasting models and computes MAE/MAPE
-    └── generate_sample_statements.py # Generates realistic 6-month bank statement PDFs with ReportLab
+└── mobile/
+    └── flutter_app/                # Flutter Cross-Platform Client Application
+        ├── lib/                    # Theme, Models, Providers, Services, Widgets, Screens
+        └── test/                   # Flutter Widget & Smoke Tests
 ```
 
 ---
 
 ## ⚡ Quick Start Guide
 
-### 1. Backend Setup & Run
+### 1. Docker Deployment (Inference-Only Container)
+
+The backend runs in a lightweight Docker container dedicated purely to inference, PDF processing, spending analytics, and forecasting.
+
+```bash
+# Build and run backend container with Docker Compose
+docker compose up --build -d
+
+# Check backend container logs
+docker compose logs -f backend
+
+# Verify health status
+curl http://localhost:8000/health
+```
+
+#### Persistent Volumes & Weights Hot-Swapping:
+- `./data`: Stores the persistent SQLite database (`expenseinsight.db`) and uploaded statement PDFs.
+- `./backend/ml/models`: Mounted read-only (`:ro`). Model weights can be updated offline on the host and hot-swapped without rebuilding the container.
+
+---
+
+### 2. Local Backend Setup (Alternative)
 
 ```bash
 # 1. Activate virtual environment
@@ -100,20 +119,22 @@ FastAPI Swagger Documentation will be available at: `http://127.0.0.1:8000/docs`
 
 ---
 
-### 2. Machine Learning Pipeline & Scripts
+### 3. Machine Learning Pipeline (Decoupled Offline Training)
+
+Model training and evaluation are decoupled from the Docker inference runtime and executed separately on the host / training environment:
 
 ```bash
-# Train ML classification models & benchmark architectures
-python scripts/train_classifier.py
+# Train ML classification models & export artifacts to backend/ml/models/
+python ml_training/scripts/train_classifier.py
 
-# In-depth edge case evaluation
-python scripts/evaluate_classifier.py
+# In-depth edge case evaluation & confusion matrix
+python ml_training/scripts/evaluate_classifier.py
 
 # Backtest forecasting accuracy & MAPE
-python scripts/evaluate_forecaster.py
+python ml_training/scripts/evaluate_forecaster.py
 
 # Generate fresh 6-month statement PDFs for HDFC, SBI, ICICI
-python scripts/generate_sample_statements.py
+python ml_training/scripts/generate_sample_statements.py
 ```
 
 #### Academic Evaluation Benchmark Results:

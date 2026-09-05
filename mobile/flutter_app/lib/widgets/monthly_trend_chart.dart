@@ -156,8 +156,8 @@ class MonthlyTrendChart extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        const Color(0xFF10B981).withOpacity(0.3),
-                        const Color(0xFF10B981).withOpacity(0.0),
+                        const Color(0xFF10B981).withValues(alpha: 0.3),
+                        const Color(0xFF10B981).withValues(alpha: 0.0),
                       ],
                     ),
                   ),

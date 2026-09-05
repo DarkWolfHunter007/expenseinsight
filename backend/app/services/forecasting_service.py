@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
-from ml.forecasting.forecaster import ExpenseForecaster
+from backend.ml.forecasting.forecaster import ExpenseForecaster
 from ..models.db_models import Forecast, Transaction
 
 class ForecastingService:
@@ -20,9 +20,14 @@ class ForecastingService:
     def generate_user_forecast(self, user_id: str, persist: bool = True) -> Dict[str, Any]:
         """
         Generates next month forecast for a user and stores results.
+        Clears all stale forecast records if transactions are empty.
         """
         txns = self.db.query(Transaction).filter(Transaction.user_id == user_id).all()
         if not txns:
+            if persist:
+                self.db.query(Forecast).filter(Forecast.user_id == user_id).delete(synchronize_session=False)
+                self.db.commit()
+
             return {
                 "status": "insufficient_data",
                 "confidence_level": "none",
@@ -53,21 +58,22 @@ class ForecastingService:
         forecast_res = self.forecaster.generate_forecast(txn_dicts)
 
         # Optionally persist to database
-        if persist and forecast_res.get("category_forecasts"):
+        if persist:
             # Clear older forecasts for user
-            self.db.query(Forecast).filter(Forecast.user_id == user_id).delete()
+            self.db.query(Forecast).filter(Forecast.user_id == user_id).delete(synchronize_session=False)
             
-            for cat, data in forecast_res["category_forecasts"].items():
-                fc_record = Forecast(
-                    user_id=user_id,
-                    forecast_date="Next Month",
-                    category=cat,
-                    predicted_amount=data["predicted_amount"],
-                    lower_bound=data["lower_bound"],
-                    upper_bound=data["upper_bound"],
-                    model_version="1.0.0"
-                )
-                self.db.add(fc_record)
+            if forecast_res.get("category_forecasts"):
+                for cat, data in forecast_res["category_forecasts"].items():
+                    fc_record = Forecast(
+                        user_id=user_id,
+                        forecast_date="Next Month",
+                        category=cat,
+                        predicted_amount=data["predicted_amount"],
+                        lower_bound=data["lower_bound"],
+                        upper_bound=data["upper_bound"],
+                        model_version="1.0.0"
+                    )
+                    self.db.add(fc_record)
             self.db.commit()
 
         return forecast_res

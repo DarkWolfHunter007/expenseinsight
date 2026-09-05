@@ -136,6 +136,9 @@ class CategoryColors {
         return entry.value;
       }
     }
+    if (categoryName.toLowerCase() == 'uncertain') {
+      return _categoryMap['Uncategorized']!;
+    }
     return _categoryMap['Other']!;
   }
 

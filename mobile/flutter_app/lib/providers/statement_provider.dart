@@ -80,23 +80,59 @@ class StatementProvider extends ChangeNotifier {
   Future<bool> uploadStatementFile(PlatformFile file) async {
     _isUploading = true;
     _uploadProgress = 0.2;
-    _currentStep = 'Uploading and reading PDF document';
+    _currentStep = 'Uploading statement PDF';
     _errorMessage = null;
     notifyListeners();
 
     try {
+      await Future.delayed(const Duration(milliseconds: 200));
+      _uploadProgress = 0.45;
+      _currentStep = 'Extracting document text & tables';
+      notifyListeners();
+
       final stmt = await _api.uploadStatement(file);
-      _uploadProgress = 1.0;
-      _currentStep = 'Completed';
       if (stmt != null) {
+        _uploadProgress = 0.85;
+        _currentStep = 'Normalizing merchants & AI Categorization';
+        notifyListeners();
+
+        await Future.delayed(const Duration(milliseconds: 200));
+        _uploadProgress = 1.0;
+        _currentStep = 'Completed';
+        _statements.removeWhere((s) => s.id == stmt.id);
         _statements.insert(0, stmt);
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = "Server did not return statement metadata.";
+        return false;
       }
-      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      return false;
+    } finally {
+      _isUploading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deleteStatement(String statementId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final success = await _api.deleteStatement(statementId);
+      if (success) {
+        _statements.removeWhere((s) => s.id == statementId);
+        return true;
+      }
+      return false;
     } catch (e) {
       _errorMessage = e.toString();
       return false;
     } finally {
-      _isUploading = false;
+      _isLoading = false;
       notifyListeners();
     }
   }

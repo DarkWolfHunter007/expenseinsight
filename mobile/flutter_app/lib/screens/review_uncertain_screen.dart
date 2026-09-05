@@ -17,10 +17,11 @@ class ReviewUncertainScreen extends StatefulWidget {
 }
 
 class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
-  int _currentIndex = 0;
   bool _applyToFuture = true;
+  String? _selectedCategory;
+  String? _lastItemTxnId;
 
-  void _onCategorySelected(UncertainReviewModel item, String chosenCategory) async {
+  void _onCategoryConfirmed(UncertainReviewModel item, String chosenCategory) async {
     final txnProv = Provider.of<TransactionProvider>(context, listen: false);
     await txnProv.updateCategory(item.transactionId, chosenCategory, applyToFuture: _applyToFuture);
 
@@ -31,6 +32,9 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
     }
 
     if (mounted) {
+      setState(() {
+        _selectedCategory = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Categorized '${item.merchant}' as '$chosenCategory'"),
@@ -103,8 +107,15 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
             );
           }
 
-          final safeIndex = _currentIndex.clamp(0, items.length - 1);
-          final currentItem = items[safeIndex];
+          final currentItem = items.first;
+
+          // Reset or initialize default selection to Uncategorized when reviewing a new item
+          if (_lastItemTxnId != currentItem.transactionId) {
+            _lastItemTxnId = currentItem.transactionId;
+            _selectedCategory = 'Uncategorized';
+          }
+
+          final activeCategory = _selectedCategory ?? 'Uncategorized';
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -116,19 +127,26 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Transaction ${safeIndex + 1} of ${items.length}',
+                      'Remaining to review: ${items.length}',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: const Color(0xFF10B981),
                       ),
                     ),
-                    Text(
-                      'Low AI Confidence (${currentItem.confidencePercentage})',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFEF4444),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Low AI Confidence (${currentItem.confidencePercentage})',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFEF4444),
+                        ),
                       ),
                     ),
                   ],
@@ -146,7 +164,7 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
@@ -161,7 +179,7 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withOpacity(0.12),
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.help_outline_rounded, color: Color(0xFFEF4444), size: 28),
@@ -172,16 +190,16 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "We couldn't confidently categorize this transaction.",
+                                  "Uncertain Category Review",
                                   style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Date: ${currentItem.date}',
+                                  'Current category defaulted to Uncategorized. Pick the correct category below.',
                                   style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
                                 ),
                               ],
@@ -208,18 +226,45 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Amount
-                      Text(
-                        'Amount:',
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
-                      ),
-                      Text(
-                        currencyFormat.format(currentItem.amount),
-                        style: GoogleFonts.poppins(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF10B981),
-                        ),
+                      // Amount & Date
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Amount:',
+                                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+                              ),
+                              Text(
+                                currencyFormat.format(currentItem.amount),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Date:',
+                                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+                              ),
+                              Text(
+                                currentItem.date,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
 
@@ -229,6 +274,7 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                         style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
                       ),
                       Container(
+                        width: double.infinity,
                         margin: const EdgeInsets.only(top: 4),
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
@@ -243,34 +289,85 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                       const SizedBox(height: 20),
 
                       // Question Header
-                      Text(
-                        'What was this expense?',
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Select Category:',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: CategoryColors.getMeta(activeCategory).backgroundColor,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  CategoryColors.getMeta(activeCategory).icon,
+                                  size: 13,
+                                  color: CategoryColors.getMeta(activeCategory).color,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Selected: $activeCategory',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: CategoryColors.getMeta(activeCategory).color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
 
-                      // Selectable Category Pills
+                      // Selectable Category Pills with Tick Mark
                       Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: currentItem.suggestedCategories.map((cat) {
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: CategoryColors.allCategories.map((cat) {
                           final meta = CategoryColors.getMeta(cat);
-                          return ActionChip(
-                            avatar: Icon(meta.icon, size: 16, color: meta.color),
+                          final isSelected = activeCategory.toLowerCase() == cat.toLowerCase();
+
+                          return ChoiceChip(
+                            showCheckmark: true,
+                            checkmarkColor: isSelected ? Colors.white : meta.color,
+                            avatar: isSelected
+                                ? null
+                                : Icon(meta.icon, size: 14, color: meta.color),
                             label: Text(cat),
                             labelStyle: GoogleFonts.inter(
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black87),
                             ),
-                            backgroundColor: isDark ? const Color(0xFF334155) : meta.backgroundColor,
-                            side: BorderSide(color: meta.color.withOpacity(0.5)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            onPressed: () => _onCategorySelected(currentItem, cat),
+                            selected: isSelected,
+                            selectedColor: meta.color,
+                            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? meta.color
+                                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _selectedCategory = cat;
+                                });
+                              }
+                            },
                           );
                         }).toList(),
                       ),
@@ -293,6 +390,37 @@ class _ReviewUncertainScreenState extends State<ReviewUncertainScreen> {
                             _applyToFuture = val;
                           });
                         },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _onCategoryConfirmed(currentItem, 'Uncategorized'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Keep Uncategorized'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _onCategoryConfirmed(currentItem, activeCategory),
+                              icon: const Icon(Icons.check_rounded, size: 18),
+                              label: const Text('Confirm Category'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

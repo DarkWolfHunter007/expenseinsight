@@ -284,6 +284,7 @@ class MockDataService {
         averageDailySpend: 1313.78,
         totalTransactionsCount: 128,
         statementPeriod: 'Jan 01, 2026 - Jun 30, 2026',
+        bankName: 'HDFC Bank',
         categoriesBreakdown: [
           CategorySpendingItem(category: 'Rent', amount: 132000.00, percentage: 55.8, transactionCount: 6),
           CategorySpendingItem(category: 'Groceries', amount: 28450.00, percentage: 12.0, transactionCount: 22),
