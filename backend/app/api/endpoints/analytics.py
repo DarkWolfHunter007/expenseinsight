@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ...database.session import get_db
@@ -18,32 +18,38 @@ router = APIRouter()
 
 @router.get("/summary", response_model=AnalyticsSummaryResponse)
 def get_analytics_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Calculates overall spending analytics summary (PRD Section 25)."""
+    """Calculates overall spending analytics summary combining Bank + Cash (PRD Section 25)."""
     service = AnalyticsService(db=db)
-    return service.get_summary(user_id=current_user.id)
+    return service.get_summary(user_id=current_user.id, start_date=start_date, end_date=end_date)
 
 
 @router.get("/monthly", response_model=List[MonthlySpendingItem])
 def get_monthly_spending(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Returns monthly income, expense, and savings trends."""
+    """Returns monthly income, expense, and savings trends combining Bank + Cash."""
     service = AnalyticsService(db=db)
-    return service.get_monthly_spending(user_id=current_user.id)
+    return service.get_monthly_spending(user_id=current_user.id, start_date=start_date, end_date=end_date)
 
 
 @router.get("/categories", response_model=List[CategorySpendingItem])
 def get_category_spending(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Returns category-wise spending distribution with percentages."""
+    """Returns category-wise spending distribution with percentages combining Bank + Cash."""
     service = AnalyticsService(db=db)
-    return service.get_category_spending(user_id=current_user.id)
+    return service.get_category_spending(user_id=current_user.id, start_date=start_date, end_date=end_date)
 
 
 @router.get("/merchants", response_model=List[MerchantSpendingItem])

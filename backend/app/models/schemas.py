@@ -101,6 +101,8 @@ class CategorySpendingItem(BaseModel):
     amount: float
     percentage: float
     transaction_count: int
+    bank_amount: float = 0.0
+    cash_amount: float = 0.0
 
 class MonthlySpendingItem(BaseModel):
     month: str # YYYY-MM
@@ -109,6 +111,8 @@ class MonthlySpendingItem(BaseModel):
     total_income: float
     net_savings: float
     transaction_count: int
+    bank_expense: float = 0.0
+    cash_expense: float = 0.0
 
 class MerchantSpendingItem(BaseModel):
     merchant: str
@@ -141,6 +145,9 @@ class AnalyticsSummaryResponse(BaseModel):
     categories_breakdown: List[CategorySpendingItem]
     top_merchants: List[MerchantSpendingItem]
     recurring_expenses: List[RecurringExpenseItem]
+    bank_spending: float = 0.0
+    cash_spending: float = 0.0
+    total_spending: float = 0.0
 
 
 # ----------------- Forecast Schemas -----------------
