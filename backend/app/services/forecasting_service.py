@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from backend.ml.forecasting.forecaster import ExpenseForecaster
-from ..models.db_models import Forecast, Transaction
+from ..models.db_models import CashExpense, Forecast, Transaction
 
 class ForecastingService:
     """
-    Forecasting service layer integrating database transactions with time-series ML models.
+    Forecasting service layer integrating database transactions and cash expenses with time-series ML models.
     """
 
     def __init__(self, db: Session):
@@ -19,11 +19,14 @@ class ForecastingService:
 
     def generate_user_forecast(self, user_id: str, persist: bool = True) -> Dict[str, Any]:
         """
-        Generates next month forecast for a user and stores results.
-        Clears all stale forecast records if transactions are empty.
+        Generates next month forecast for a user based on total personal spending
+        (Bank Transactions + Cash Expenses) and stores results.
+        Clears all stale forecast records if both transactions and cash expenses are empty.
         """
         txns = self.db.query(Transaction).filter(Transaction.user_id == user_id).all()
-        if not txns:
+        cash_list = self.db.query(CashExpense).filter(CashExpense.user_id == user_id).all()
+
+        if not txns and not cash_list:
             if persist:
                 self.db.query(Forecast).filter(Forecast.user_id == user_id).delete(synchronize_session=False)
                 self.db.commit()
@@ -31,7 +34,7 @@ class ForecastingService:
             return {
                 "status": "insufficient_data",
                 "confidence_level": "none",
-                "status_message": "No transactions found for user.",
+                "status_message": "No transactions or cash expenses found for user.",
                 "historical_months_count": 0,
                 "total_forecast": 0.0,
                 "lower_bound": 0.0,
@@ -39,11 +42,11 @@ class ForecastingService:
                 "next_7_days_forecast": 0.0,
                 "next_30_days_forecast": 0.0,
                 "category_forecasts": {},
-                "explanation": "Upload at least 1-3 months of bank statements to generate forecasts.",
-                "explanation_bullets": ["Upload bank statements to view predictive spending forecasts."]
+                "explanation": "Upload at least 1-3 months of bank statements or cash expenses to generate forecasts.",
+                "explanation_bullets": ["Upload bank statements or record cash expenses to view predictive spending forecasts."]
             }
 
-        # Convert to dicts for forecaster
+        # Convert bank transactions to dicts for forecaster
         txn_dicts = [
             {
                 "date": t.date,
@@ -54,6 +57,16 @@ class ForecastingService:
             }
             for t in txns
         ]
+
+        # Add manual cash expenses into total spending stream
+        for c in cash_list:
+            txn_dicts.append({
+                "date": c.expense_date,
+                "amount": c.amount,
+                "category": c.category,
+                "transaction_type": "expense",
+                "cr_dr": "DR"
+            })
 
         forecast_res = self.forecaster.generate_forecast(txn_dicts)
 

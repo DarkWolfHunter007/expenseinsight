@@ -178,14 +178,16 @@ def delete_statement(
     db.commit()
 
     # 4. Synchronize user forecasts & corrections
+    from ...models.db_models import CashExpense
     remaining_txns_count = db.query(Transaction).filter(Transaction.user_id == current_user.id).count()
-    if remaining_txns_count == 0:
-        # Zero transactions remaining -> clear all forecasts and corrections
+    remaining_cash_count = db.query(CashExpense).filter(CashExpense.user_id == current_user.id).count()
+    if remaining_txns_count == 0 and remaining_cash_count == 0:
+        # Zero transactions and zero cash expenses remaining -> clear all forecasts and corrections
         db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
         db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).delete(synchronize_session=False)
         db.commit()
     else:
-        # Recompute forecast with remaining transactions
+        # Recompute forecast with remaining transactions & cash expenses
         forecasting_service = ForecastingService(db=db)
         try:
             forecasting_service.generate_user_forecast(user_id=current_user.id, persist=True)
