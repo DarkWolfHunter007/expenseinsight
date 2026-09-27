@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/transaction_provider.dart';
+import 'cash_expenses_screen.dart';
 import 'dashboard_screen.dart';
 import 'forecast_screen.dart';
 import 'model_benchmark_screen.dart';
@@ -20,6 +21,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = const [
     DashboardScreen(),
+    CashExpensesScreen(),
     UploadScreen(),
     TransactionsScreen(),
     ForecastScreen(),
@@ -66,6 +68,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       icon: Icon(Icons.dashboard_outlined),
                       selectedIcon: Icon(Icons.dashboard_rounded),
                       label: Text('Dashboard'),
+                    ),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.payments_outlined),
+                      selectedIcon: Icon(Icons.payments_rounded),
+                      label: Text('Cash Expenses'),
                     ),
                     const NavigationRailDestination(
                       icon: Icon(Icons.cloud_upload_outlined),
@@ -115,6 +122,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 icon: Icon(Icons.dashboard_outlined),
                 selectedIcon: Icon(Icons.dashboard_rounded),
                 label: 'Overview',
+              ),
+              const NavigationRequest(
+                icon: Icon(Icons.payments_outlined),
+                selectedIcon: Icon(Icons.payments_rounded),
+                label: 'Cash',
               ),
               const NavigationRequest(
                 icon: Icon(Icons.cloud_upload_outlined),
