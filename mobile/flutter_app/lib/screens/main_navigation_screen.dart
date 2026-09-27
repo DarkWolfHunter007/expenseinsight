@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/transaction_provider.dart';
+import '../widgets/add_edit_cash_expense_dialog.dart';
 import 'cash_expenses_screen.dart';
 import 'dashboard_screen.dart';
 import 'forecast_screen.dart';
 import 'model_benchmark_screen.dart';
+import 'more_screen.dart';
 import 'transactions_screen.dart';
 import 'upload_screen.dart';
 
@@ -17,9 +19,10 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _selectedIndex = 0;
+  int _desktopSelectedIndex = 0;
+  int _mobileSelectedIndex = 0; // 0: Overview, 1: Transactions, 2: Forecast, 3: More
 
-  final List<Widget> _screens = const [
+  final List<Widget> _desktopScreens = const [
     DashboardScreen(),
     CashExpensesScreen(),
     UploadScreen(),
@@ -27,6 +30,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ForecastScreen(),
     ModelBenchmarkScreen(),
   ];
+
+  final List<Widget> _mobileScreens = const [
+    DashboardScreen(),
+    TransactionsScreen(),
+    ForecastScreen(),
+    MoreScreen(),
+  ];
+
+  int _mobileIndexToNav(int index) {
+    switch (index) {
+      case 0:
+        return 0; // Overview
+      case 1:
+        return 1; // Transactions
+      case 2:
+        return 3; // Forecast
+      case 3:
+        return 4; // More
+      default:
+        return 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +62,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         final isDesktop = constraints.maxWidth > 800;
 
         if (isDesktop) {
-          // Desktop / Web Navigation Rail Layout
+          // Desktop / Web Navigation Rail Layout (Preserved 100%)
           return Scaffold(
             body: Row(
               children: [
                 NavigationRail(
-                  selectedIndex: _selectedIndex,
+                  selectedIndex: _desktopSelectedIndex,
                   onDestinationSelected: (int index) {
                     setState(() {
-                      _selectedIndex = index;
+                      _desktopSelectedIndex = index;
                     });
                   },
                   labelType: NavigationRailLabelType.all,
@@ -101,22 +126,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   ],
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: _screens[_selectedIndex]),
+                Expanded(child: _desktopScreens[_desktopSelectedIndex]),
               ],
             ),
           );
         }
 
-        // Mobile Bottom Navigation Bar Layout
+        // Mobile Bottom Navigation Bar Layout (Rebalanced Hierarchy)
         return Scaffold(
-          body: _screens[_selectedIndex],
+          body: _mobileScreens[_mobileSelectedIndex],
           bottomNavigationBar: NavigationBar(
             labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-            selectedIndex: _selectedIndex,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-            onDestinationSelected: (int index) {
+            selectedIndex: _mobileIndexToNav(_mobileSelectedIndex),
+            onDestinationSelected: (int navIndex) {
+              if (navIndex == 2) {
+                // Unified Add Expense action
+                AddEditCashExpenseDialog.show(context);
+                return;
+              }
               setState(() {
-                _selectedIndex = index;
+                if (navIndex == 0) {
+                  _mobileSelectedIndex = 0;
+                } else if (navIndex == 1) {
+                  _mobileSelectedIndex = 1;
+                } else if (navIndex == 3) {
+                  _mobileSelectedIndex = 2;
+                } else if (navIndex == 4) {
+                  _mobileSelectedIndex = 3;
+                }
               });
             },
             destinations: [
@@ -124,16 +161,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 icon: Icon(Icons.dashboard_outlined),
                 selectedIcon: Icon(Icons.dashboard_rounded),
                 label: 'Overview',
-              ),
-              const NavigationRequest(
-                icon: Icon(Icons.payments_outlined),
-                selectedIcon: Icon(Icons.payments_rounded),
-                label: 'Cash',
-              ),
-              const NavigationRequest(
-                icon: Icon(Icons.cloud_upload_outlined),
-                selectedIcon: Icon(Icons.cloud_upload_rounded),
-                label: 'Upload',
               ),
               NavigationRequest(
                 icon: Badge(
@@ -145,14 +172,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 label: 'Transactions',
               ),
               const NavigationRequest(
+                icon: Icon(Icons.add_circle_outline_rounded, size: 28),
+                selectedIcon: Icon(Icons.add_circle_rounded, size: 28),
+                label: 'Add',
+              ),
+              const NavigationRequest(
                 icon: Icon(Icons.auto_awesome_outlined),
                 selectedIcon: Icon(Icons.auto_awesome_rounded),
                 label: 'Forecast',
               ),
               const NavigationRequest(
-                icon: Icon(Icons.psychology_outlined),
-                selectedIcon: Icon(Icons.psychology_rounded),
-                label: 'AI Model',
+                icon: Icon(Icons.more_horiz_outlined),
+                selectedIcon: Icon(Icons.more_horiz_rounded),
+                label: 'More',
               ),
             ],
           ),

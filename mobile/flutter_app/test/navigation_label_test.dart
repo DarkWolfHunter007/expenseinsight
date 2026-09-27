@@ -55,29 +55,27 @@ void main() {
 
         // Mobile labels must NOT be in NavigationBar
         expect(find.descendant(of: navBar, matching: find.text('Overview')), findsNothing);
-        expect(find.descendant(of: navBar, matching: find.text('Cash')), findsNothing);
-        expect(find.descendant(of: navBar, matching: find.text('Upload')), findsNothing);
         expect(find.descendant(of: navBar, matching: find.text('Transactions')), findsNothing);
+        expect(find.descendant(of: navBar, matching: find.text('Add')), findsNothing);
         expect(find.descendant(of: navBar, matching: find.text('Forecast')), findsNothing);
-        expect(find.descendant(of: navBar, matching: find.text('AI Model')), findsNothing);
+        expect(find.descendant(of: navBar, matching: find.text('More')), findsNothing);
 
         // Icons are visible and rendered inside NavigationBar
         expect(find.descendant(of: navBar, matching: find.byIcon(Icons.dashboard_rounded)), findsOneWidget); // Selected
-        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.payments_outlined)), findsOneWidget);
-        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.cloud_upload_outlined)), findsOneWidget);
         expect(find.descendant(of: navBar, matching: find.byIcon(Icons.receipt_long_outlined)), findsOneWidget);
+        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.add_circle_outline_rounded)), findsOneWidget);
         expect(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_outlined)), findsOneWidget);
-        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.psychology_outlined)), findsOneWidget);
+        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.more_horiz_outlined)), findsOneWidget);
 
-        // Navigation bar height is valid and fits all 6 destinations without overflow
+        // Navigation bar height is valid and fits all destinations without overflow
         final navBarBox = tester.renderObject(navBar) as RenderBox;
         expect(navBarBox.size.width, width);
         expect(navBarBox.size.height, greaterThan(0));
 
         // Destinations are tappable
-        await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.payments_outlined)));
+        await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_outlined)));
         await tester.pump();
-        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.payments_rounded)), findsOneWidget); // Now selected
+        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_rounded)), findsOneWidget); // Now selected
       });
     }
 
