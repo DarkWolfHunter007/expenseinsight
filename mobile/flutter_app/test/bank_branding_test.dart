@@ -103,7 +103,7 @@ void main() {
       expect(find.text('Jan 01, 2026 - Jun 30, 2026 · 128 transactions'), findsOneWidget);
     });
 
-    testWidgets('CompactStatementContextCard accurately represents multiple statements', (WidgetTester tester) async {
+    testWidgets('CompactStatementContextCard accurately represents multiple statements from different banks', (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -120,6 +120,63 @@ void main() {
       expect(find.text('Multiple Bank Statements'), findsOneWidget);
       expect(find.text('MULTI'), findsOneWidget);
       expect(find.text('2 statements · 256 transactions'), findsOneWidget);
+    });
+
+    testWidgets('CompactStatementContextCard handles multiple statements from same bank without multi-bank override', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CompactStatementContextCard(
+              bankName: 'HDFC Bank',
+              statementPeriod: 'Jan 01, 2026 - Jun 30, 2026',
+              transactionCount: 256,
+              statementCount: 2,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('HDFC Bank'), findsOneWidget);
+      expect(find.text('HDFC'), findsOneWidget);
+      expect(find.text('2 statements · 256 transactions'), findsOneWidget);
+    });
+
+    testWidgets('CompactStatementContextCard displays zero-transaction statement accurately', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CompactStatementContextCard(
+              bankName: 'HDFC Bank',
+              statementPeriod: 'Jan 01, 2026 - Jun 30, 2026',
+              transactionCount: 0,
+              statementCount: 1,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('HDFC Bank'), findsOneWidget);
+      expect(find.text('HDFC'), findsOneWidget);
+      expect(find.text('Jan 01, 2026 - Jun 30, 2026 · 0 transactions'), findsOneWidget);
+    });
+
+    testWidgets('CompactStatementContextCard displays cash-only state correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CompactStatementContextCard(
+              bankName: 'Cash & Liquid Expenses',
+              statementPeriod: 'Active Statement Period',
+              transactionCount: 5,
+              statementCount: 0,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Cash & Liquid Expenses'), findsOneWidget);
+      expect(find.text('CASH'), findsOneWidget);
+      expect(find.text('Active Statement Period · 5 transactions'), findsOneWidget);
     });
 
     testWidgets('CompactStatementContextCard handles empty state cleanly', (WidgetTester tester) async {

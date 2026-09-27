@@ -61,9 +61,11 @@ class BankStatementHeader extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    branding.shortCode.substring(0, branding.shortCode.length.clamp(1, 4)),
+                    branding.shortCode.length > 5
+                        ? branding.shortCode.substring(0, 5)
+                        : branding.shortCode,
                     style: GoogleFonts.poppins(
-                      fontSize: branding.shortCode.length > 3 ? 10 : 12,
+                      fontSize: branding.shortCode.length > 4 ? 9.5 : (branding.shortCode.length > 3 ? 10.5 : 12.0),
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                       letterSpacing: 0.5,
@@ -229,7 +231,8 @@ class CompactStatementContextCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final branding = statementCount > 1
+    final isMultiBank = bankName.toLowerCase().trim().startsWith('multiple');
+    final branding = isMultiBank
         ? BankBranding.fromName('multiple')
         : BankBranding.fromName(bankName);
 
@@ -237,13 +240,15 @@ class CompactStatementContextCard extends StatelessWidget {
     final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     final period = statementPeriod ?? 'Active Statement Period';
-    final hasNoData = transactionCount == 0 && (bankName == 'Bank Statement' || bankName == 'No Statements Ingested');
+    final hasNoData = statementCount == 0 && transactionCount == 0;
 
-    String titleText = branding.name;
-    if (statementCount > 1) {
-      titleText = 'Multiple Bank Statements';
-    } else if (hasNoData) {
+    String titleText;
+    if (hasNoData) {
       titleText = 'No Statements Ingested';
+    } else if (isMultiBank) {
+      titleText = 'Multiple Bank Statements';
+    } else {
+      titleText = branding.name;
     }
 
     String subtitleText;

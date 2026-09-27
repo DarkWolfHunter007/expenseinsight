@@ -100,7 +100,34 @@ class AnalyticsService:
         bank_df = self._get_user_transactions_df(user_id)
         cash_df = self._get_user_cash_expenses_df(user_id)
 
+        # Retrieve active statements for statement context
+        user_stmts = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).all()
+        stmt_count = len(user_stmts)
+        distinct_banks = [b for b in dict.fromkeys(s.bank_name for s in user_stmts if s.bank_name and s.bank_name not in ("Generic Bank", "Bank Statement"))]
+
+        if stmt_count > 1:
+            if len(distinct_banks) == 1:
+                bank_name = distinct_banks[0]
+            elif len(distinct_banks) > 1:
+                bank_name = f"Multiple Banks ({', '.join(distinct_banks)})"
+            else:
+                bank_name = "Multiple Statements"
+        elif stmt_count == 1:
+            bank_name = user_stmts[0].bank_name or "Bank Statement"
+        elif not cash_df.empty and bank_df.empty:
+            bank_name = "Cash & Liquid Expenses"
+        else:
+            bank_name = "Bank Statement"
+
         if bank_df.empty and cash_df.empty:
+            period_str = "No statements uploaded"
+            if stmt_count > 0:
+                stmt_start, stmt_end = self._get_statement_date_bounds(user_id)
+                if stmt_start and stmt_end:
+                    period_str = f"{stmt_start} - {stmt_end}"
+                else:
+                    period_str = "Active Statement Period"
+
             return {
                 "total_expense": 0.0,
                 "total_income": 0.0,
@@ -111,9 +138,9 @@ class AnalyticsService:
                 "month_over_month_change_pct": 0.0,
                 "average_daily_spend": 0.0,
                 "total_transactions_count": 0,
-                "statement_period": "No statements uploaded",
-                "bank_name": "Bank Statement",
-                "statement_count": 0,
+                "statement_period": period_str,
+                "bank_name": bank_name,
+                "statement_count": stmt_count,
                 "categories_breakdown": [],
                 "top_merchants": [],
                 "recurring_expenses": [],
@@ -226,24 +253,8 @@ class AnalyticsService:
         # Recurring Expenses (bank only)
         recurring = self.get_recurring_expenses(user_id)
 
-        # Determine Bank Name, Multiple Statements indicator & Statement Count
-        user_stmts = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).all()
-        stmt_count = len(user_stmts)
-        distinct_banks = [b for b in dict.fromkeys(s.bank_name for s in user_stmts if s.bank_name and s.bank_name not in ("Generic Bank", "Bank Statement"))]
-
-        if stmt_count > 1:
-            if len(distinct_banks) == 1:
-                bank_name = distinct_banks[0]
-            elif len(distinct_banks) > 1:
-                bank_name = f"Multiple Banks ({', '.join(distinct_banks)})"
-            else:
-                bank_name = "Multiple Statements"
-        elif stmt_count == 1:
-            bank_name = user_stmts[0].bank_name or "Bank Statement"
-        elif not cash_in_range_df.empty and bank_in_range_df.empty:
+        if not cash_in_range_df.empty and bank_in_range_df.empty:
             bank_name = "Cash & Liquid Expenses"
-        else:
-            bank_name = "Bank Statement"
 
         total_txns_count = len(bank_in_range_df) + len(cash_in_range_df)
 

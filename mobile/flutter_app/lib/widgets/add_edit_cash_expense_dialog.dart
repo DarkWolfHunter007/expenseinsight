@@ -61,6 +61,8 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
 
     if (exp != null && exp.description != null && exp.description!.startsWith('[Bank]')) {
       _paymentSource = 'Bank';
+    } else if (exp != null && exp.description != null && exp.description!.startsWith('[UPI]')) {
+      _paymentSource = 'UPI';
     } else {
       _paymentSource = 'Cash';
     }
@@ -118,6 +120,8 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
     String? finalDesc = rawDesc.isNotEmpty ? rawDesc : null;
     if (_paymentSource == 'Bank' && (finalDesc == null || !finalDesc.startsWith('[Bank]'))) {
       finalDesc = finalDesc != null ? '[Bank] $finalDesc' : '[Bank]';
+    } else if (_paymentSource == 'UPI' && (finalDesc == null || !finalDesc.startsWith('[UPI]'))) {
+      finalDesc = finalDesc != null ? '[UPI] $finalDesc' : '[UPI]';
     }
 
     final cashProv = Provider.of<CashExpenseProvider>(context, listen: false);
@@ -262,12 +266,13 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    // Cash Option
                     Expanded(
                       child: InkWell(
                         onTap: () => setState(() => _paymentSource = 'Cash'),
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
                           decoration: BoxDecoration(
                             color: _paymentSource == 'Cash'
                                 ? const Color(0xFF10B981).withValues(alpha: 0.15)
@@ -285,16 +290,16 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                             children: [
                               Icon(
                                 Icons.payments_rounded,
-                                size: 16,
+                                size: 15,
                                 color: _paymentSource == 'Cash' ? const Color(0xFF10B981) : Colors.grey,
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
                                   'Cash',
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     color: _paymentSource == 'Cash'
                                         ? const Color(0xFF10B981)
@@ -307,13 +312,63 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
+
+                    // UPI Option
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _paymentSource = 'UPI'),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                          decoration: BoxDecoration(
+                            color: _paymentSource == 'UPI'
+                                ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _paymentSource == 'UPI'
+                                  ? const Color(0xFF8B5CF6)
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              width: _paymentSource == 'UPI' ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.qr_code_2_rounded,
+                                size: 15,
+                                color: _paymentSource == 'UPI' ? const Color(0xFF8B5CF6) : Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'UPI',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _paymentSource == 'UPI'
+                                        ? const Color(0xFF8B5CF6)
+                                        : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Bank Option
                     Expanded(
                       child: InkWell(
                         onTap: () => setState(() => _paymentSource = 'Bank'),
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
                           decoration: BoxDecoration(
                             color: _paymentSource == 'Bank'
                                 ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
@@ -331,16 +386,16 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                             children: [
                               Icon(
                                 Icons.account_balance_rounded,
-                                size: 16,
+                                size: 15,
                                 color: _paymentSource == 'Bank' ? const Color(0xFF3B82F6) : Colors.grey,
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
                                   'Bank',
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     color: _paymentSource == 'Bank'
                                         ? const Color(0xFF3B82F6)
