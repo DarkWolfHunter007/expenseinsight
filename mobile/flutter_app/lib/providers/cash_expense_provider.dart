@@ -4,7 +4,10 @@ import '../models/cash_expense_model.dart';
 import '../services/api_service.dart';
 
 class CashExpenseProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  CashExpenseProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<CashExpenseModel> _cashExpenses = [];
   bool _isLoading = false;

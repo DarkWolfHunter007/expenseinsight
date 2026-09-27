@@ -105,8 +105,6 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
     final desc = _descriptionController.text.trim();
 
     final cashProv = Provider.of<CashExpenseProvider>(context, listen: false);
-    final analyticsProv = Provider.of<AnalyticsProvider>(context, listen: false);
-    final forecastProv = Provider.of<ForecastProvider>(context, listen: false);
 
     bool success;
     if (widget.expense != null) {
@@ -129,9 +127,13 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
     if (!mounted) return;
 
     if (success) {
-      // Immediately refresh unified analytics & forecast
-      analyticsProv.fetchAnalytics();
-      forecastProv.fetchForecast();
+      // Immediately refresh unified analytics & forecast if present
+      try {
+        Provider.of<AnalyticsProvider>(context, listen: false).fetchAnalytics();
+      } catch (_) {}
+      try {
+        Provider.of<ForecastProvider>(context, listen: false).fetchForecast();
+      } catch (_) {}
       Navigator.of(context).pop(true);
     } else {
       setState(() {
@@ -164,30 +166,34 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.payments_rounded,
+                              color: Color(0xFF10B981),
+                              size: 24,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.payments_rounded,
-                            color: Color(0xFF10B981),
-                            size: 24,
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              isEditing ? 'Edit Cash Expense' : 'Add Cash Expense',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          isEditing ? 'Edit Cash Expense' : 'Add Cash Expense',
-                          style: GoogleFonts.inter(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close_rounded),
