@@ -83,5 +83,61 @@ void main() {
       expect(find.text('128 transactions'), findsOneWidget);
       expect(find.text('Analyzed'), findsOneWidget);
     });
+
+    testWidgets('CompactStatementContextCard renders single statement context', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CompactStatementContextCard(
+              bankName: 'HDFC Bank',
+              statementPeriod: 'Jan 01, 2026 - Jun 30, 2026',
+              transactionCount: 128,
+              statementCount: 1,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('HDFC Bank'), findsOneWidget);
+      expect(find.text('HDFC'), findsOneWidget);
+      expect(find.text('Jan 01, 2026 - Jun 30, 2026 · 128 transactions'), findsOneWidget);
+    });
+
+    testWidgets('CompactStatementContextCard accurately represents multiple statements', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CompactStatementContextCard(
+              bankName: 'Multiple Banks (HDFC, SBI)',
+              statementPeriod: 'Jan 01, 2026 - Jun 30, 2026',
+              transactionCount: 256,
+              statementCount: 2,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Multiple Bank Statements'), findsOneWidget);
+      expect(find.text('MULTI'), findsOneWidget);
+      expect(find.text('2 statements · 256 transactions'), findsOneWidget);
+    });
+
+    testWidgets('CompactStatementContextCard handles empty state cleanly', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CompactStatementContextCard(
+              bankName: 'Bank Statement',
+              statementPeriod: null,
+              transactionCount: 0,
+              statementCount: 0,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('No Statements Ingested'), findsOneWidget);
+      expect(find.text('Upload a statement to begin'), findsOneWidget);
+    });
   });
 }

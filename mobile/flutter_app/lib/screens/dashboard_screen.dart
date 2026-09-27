@@ -24,6 +24,7 @@ import '../widgets/transaction_tile.dart';
 import 'forecast_screen.dart';
 import 'review_uncertain_screen.dart';
 import 'transactions_screen.dart';
+import 'upload_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final VoidCallback? onOpenForecast;
@@ -139,6 +140,21 @@ class DashboardScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 0. Active Bank Statement Context (Compact)
+              CompactStatementContextCard(
+                bankName: summary?.bankName ?? 'Bank Statement',
+                statementPeriod: summary?.statementPeriod,
+                transactionCount: summary?.totalTransactionsCount ?? 0,
+                statementCount: summary?.statementCount ?? 0,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UploadScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+
               // 1. Spending Overview (Total Spending with subtle Bank vs Cash indicators)
               _buildMobileSpendingOverview(context, summary, isDark),
               const SizedBox(height: 16),

@@ -207,3 +207,135 @@ class BankStatementHeader extends StatelessWidget {
     );
   }
 }
+
+/// Compact Statement Context Card for Mobile Home
+/// Clearly indicates the active statement(s), bank branding, period, and transaction count.
+class CompactStatementContextCard extends StatelessWidget {
+  final String bankName;
+  final String? statementPeriod;
+  final int transactionCount;
+  final int statementCount;
+  final VoidCallback? onTap;
+
+  const CompactStatementContextCard({
+    super.key,
+    required this.bankName,
+    this.statementPeriod,
+    required this.transactionCount,
+    this.statementCount = 0,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final branding = statementCount > 1
+        ? BankBranding.fromName('multiple')
+        : BankBranding.fromName(bankName);
+
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
+    final period = statementPeriod ?? 'Active Statement Period';
+    final hasNoData = transactionCount == 0 && (bankName == 'Bank Statement' || bankName == 'No Statements Ingested');
+
+    String titleText = branding.name;
+    if (statementCount > 1) {
+      titleText = 'Multiple Bank Statements';
+    } else if (hasNoData) {
+      titleText = 'No Statements Ingested';
+    }
+
+    String subtitleText;
+    if (hasNoData) {
+      subtitleText = 'Upload a statement to begin';
+    } else if (statementCount > 1) {
+      subtitleText = '$statementCount statements · $transactionCount transactions';
+    } else {
+      subtitleText = '$period · $transactionCount transactions';
+    }
+
+    return Material(
+      color: cardBg,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              // Compact Bank Logo Chip
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: hasNoData
+                      ? Colors.grey.withValues(alpha: 0.15)
+                      : branding.primaryColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: hasNoData
+                      ? Icon(Icons.cloud_upload_outlined, size: 18, color: Colors.grey[400])
+                      : Text(
+                          branding.shortCode.length > 5
+                              ? branding.shortCode.substring(0, 5)
+                              : branding.shortCode,
+                          style: GoogleFonts.poppins(
+                            fontSize: branding.shortCode.length > 4 ? 8.5 : 10,
+                            fontWeight: FontWeight.w800,
+                            color: branding.primaryColor,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Bank Name and Period/Transaction Count
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titleText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitleText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (onTap != null) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 12,
+                  color: isDark ? Colors.grey[500] : Colors.grey[400],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

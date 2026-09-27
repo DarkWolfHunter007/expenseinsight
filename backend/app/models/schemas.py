@@ -143,6 +143,7 @@ class AnalyticsSummaryResponse(BaseModel):
     total_transactions_count: int
     statement_period: Optional[str] = None
     bank_name: Optional[str] = "Bank Statement"
+    statement_count: int = 0
     categories_breakdown: List[CategorySpendingItem]
     top_merchants: List[MerchantSpendingItem]
     recurring_expenses: List[RecurringExpenseItem]

@@ -113,6 +113,7 @@ class AnalyticsService:
                 "total_transactions_count": 0,
                 "statement_period": "No statements uploaded",
                 "bank_name": "Bank Statement",
+                "statement_count": 0,
                 "categories_breakdown": [],
                 "top_merchants": [],
                 "recurring_expenses": [],
@@ -225,10 +226,20 @@ class AnalyticsService:
         # Recurring Expenses (bank only)
         recurring = self.get_recurring_expenses(user_id)
 
-        # Bank Name or Cash indicator
-        latest_stmt = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).first()
-        if latest_stmt and latest_stmt.bank_name:
-            bank_name = latest_stmt.bank_name
+        # Determine Bank Name, Multiple Statements indicator & Statement Count
+        user_stmts = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).all()
+        stmt_count = len(user_stmts)
+        distinct_banks = [b for b in dict.fromkeys(s.bank_name for s in user_stmts if s.bank_name and s.bank_name not in ("Generic Bank", "Bank Statement"))]
+
+        if stmt_count > 1:
+            if len(distinct_banks) == 1:
+                bank_name = distinct_banks[0]
+            elif len(distinct_banks) > 1:
+                bank_name = f"Multiple Banks ({', '.join(distinct_banks)})"
+            else:
+                bank_name = "Multiple Statements"
+        elif stmt_count == 1:
+            bank_name = user_stmts[0].bank_name or "Bank Statement"
         elif not cash_in_range_df.empty and bank_in_range_df.empty:
             bank_name = "Cash & Liquid Expenses"
         else:
@@ -248,6 +259,7 @@ class AnalyticsService:
             "total_transactions_count": total_txns_count,
             "statement_period": period_str,
             "bank_name": bank_name,
+            "statement_count": stmt_count,
             "categories_breakdown": categories_breakdown,
             "top_merchants": top_merchants,
             "recurring_expenses": recurring,

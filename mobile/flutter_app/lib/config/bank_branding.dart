@@ -200,6 +200,28 @@ class BankBranding {
       return _defaultBranding('Bank Statement');
     }
     final lower = name.toLowerCase().trim();
+    if (lower.startsWith('multiple')) {
+      return const BankBrandingInfo(
+        name: 'Multiple Bank Statements',
+        shortCode: 'MULTI',
+        icon: Icons.account_balance_rounded,
+        primaryColor: Color(0xFF3B82F6),
+        lightBackgroundColor: Color(0xFFEFF6FF),
+        darkBackgroundColor: Color(0xFF0F172A),
+        tagline: 'Aggregated Bank Statements',
+      );
+    }
+    if (lower.contains('cash')) {
+      return const BankBrandingInfo(
+        name: 'Cash & Liquid Expenses',
+        shortCode: 'CASH',
+        icon: Icons.payments_rounded,
+        primaryColor: Color(0xFF10B981),
+        lightBackgroundColor: Color(0xFFECFDF5),
+        darkBackgroundColor: Color(0xFF064E3B),
+        tagline: 'Cash Spending Ledger',
+      );
+    }
     for (final entry in _bankMap.entries) {
       if (lower.contains(entry.key)) {
         return entry.value;

@@ -132,6 +132,7 @@ class AnalyticsSummaryModel {
   final int totalTransactionsCount;
   final String? statementPeriod;
   final String bankName;
+  final int statementCount;
   final List<CategorySpendingItem> categoriesBreakdown;
   final List<MerchantSpendingItem> topMerchants;
   final List<RecurringExpenseItem> recurringExpenses;
@@ -151,6 +152,7 @@ class AnalyticsSummaryModel {
     required this.totalTransactionsCount,
     this.statementPeriod,
     this.bankName = 'Bank Statement',
+    this.statementCount = 0,
     required this.categoriesBreakdown,
     required this.topMerchants,
     required this.recurringExpenses,
@@ -173,6 +175,8 @@ class AnalyticsSummaryModel {
       totalTransactionsCount: json['total_transactions_count'] ?? 0,
       statementPeriod: json['statement_period'],
       bankName: json['bank_name'] ?? 'Bank Statement',
+      statementCount: json['statement_count'] ??
+          (json['bank_name'] != null && json['bank_name'] != 'No Statements Ingested' && json['bank_name'] != 'Bank Statement' ? 1 : 0),
       categoriesBreakdown: (json['categories_breakdown'] as List<dynamic>?)
               ?.map((e) => CategorySpendingItem.fromJson(e))
               .toList() ??
