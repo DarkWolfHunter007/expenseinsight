@@ -342,7 +342,7 @@ class DashboardScreen extends StatelessWidget {
                       color: const Color(0xFF10B981).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.pie_chart_outline_rounded, size: 18, color: Color(0xFF10B981)),
+                    child: const Icon(Icons.payments_rounded, size: 18, color: Color(0xFF10B981)),
                   ),
                   const SizedBox(width: 8),
                   Text(
