@@ -258,29 +258,30 @@ void main() {
       await tester.pumpAndSettle();
 
       // Check dialog elements
-      expect(find.text('Add Cash Expense'), findsOneWidget);
+      expect(find.text('Add Expense'), findsWidgets);
+      expect(find.text('Payment Source *'), findsOneWidget);
       expect(find.text('Amount *'), findsOneWidget);
       expect(find.text('Category *'), findsOneWidget);
       expect(find.text('Date *'), findsOneWidget);
 
       // Submit empty form -> should show error
-      await tester.tap(find.text('Add Expense'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add Expense'));
       await tester.pumpAndSettle();
       expect(find.text('Amount is required.'), findsOneWidget);
 
       // Enter invalid zero amount -> should show error
       await tester.enterText(find.byType(TextFormField).first, '0');
-      await tester.tap(find.text('Add Expense'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add Expense'));
       await tester.pumpAndSettle();
       expect(find.text('Amount must be greater than zero.'), findsOneWidget);
 
       // Enter valid amount
       await tester.enterText(find.byType(TextFormField).first, '150');
-      await tester.tap(find.text('Add Expense'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add Expense'));
       await tester.pumpAndSettle();
 
       // Dialog should close and item should be added
-      expect(find.text('Add Cash Expense'), findsNothing);
+      expect(find.text('Payment Source *'), findsNothing);
       expect(provider.cashExpenses.any((e) => e.amount == 150.0), isTrue);
     });
   });

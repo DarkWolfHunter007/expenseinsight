@@ -33,6 +33,7 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
   late TextEditingController _descriptionController;
   late String _selectedCategory;
   late DateTime _selectedDate;
+  String _paymentSource = 'Cash'; // 'Cash' | 'Bank'
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -52,6 +53,12 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
       _selectedCategory = exp.category;
     } else {
       _selectedCategory = availableCategories.isNotEmpty ? availableCategories.first : 'Food';
+    }
+
+    if (exp != null && exp.description != null && exp.description!.startsWith('[Bank]')) {
+      _paymentSource = 'Bank';
+    } else {
+      _paymentSource = 'Cash';
     }
 
     if (exp != null && exp.expenseDate.isNotEmpty) {
@@ -103,7 +110,11 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
     });
 
     final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    final desc = _descriptionController.text.trim();
+    final rawDesc = _descriptionController.text.trim();
+    String? finalDesc = rawDesc.isNotEmpty ? rawDesc : null;
+    if (_paymentSource == 'Bank' && (finalDesc == null || !finalDesc.startsWith('[Bank]'))) {
+      finalDesc = finalDesc != null ? '[Bank] $finalDesc' : '[Bank]';
+    }
 
     final cashProv = Provider.of<CashExpenseProvider>(context, listen: false);
 
@@ -114,21 +125,21 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
         amount: parsedAmount,
         category: _selectedCategory,
         expenseDate: formattedDate,
-        description: desc.isNotEmpty ? desc : null,
+        description: finalDesc,
       );
     } else {
       success = await cashProv.createCashExpense(
         amount: parsedAmount,
         category: _selectedCategory,
         expenseDate: formattedDate,
-        description: desc.isNotEmpty ? desc : null,
+        description: finalDesc,
       );
     }
 
     if (!mounted) return;
 
     if (success) {
-      // Immediately refresh unified analytics & forecast if present
+      // Immediately refresh unified analytics & forecast & transactions
       try {
         Provider.of<AnalyticsProvider>(context, listen: false).fetchAnalytics();
       } catch (_) {}
@@ -179,16 +190,16 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                               color: const Color(0xFF10B981).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              Icons.payments_rounded,
-                              color: Color(0xFF10B981),
+                            child: Icon(
+                              isEditing ? Icons.edit_note_rounded : Icons.add_card_rounded,
+                              color: const Color(0xFF10B981),
                               size: 24,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Flexible(
                             child: Text(
-                              isEditing ? 'Edit Cash Expense' : 'Add Cash Expense',
+                              isEditing ? 'Edit Expense' : 'Add Expense',
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -207,7 +218,7 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Record physical cash or out-of-bank spending to track your true total expenditure.',
+                  'Record manual spending to keep your financial intelligence and forecasts complete.',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
@@ -238,6 +249,109 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                   ),
                   const SizedBox(height: 16),
                 ],
+
+                // Payment Source Selector (PRD Phase 5)
+                Text(
+                  'Payment Source *',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _paymentSource = 'Cash'),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: _paymentSource == 'Cash'
+                                ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _paymentSource == 'Cash'
+                                  ? const Color(0xFF10B981)
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              width: _paymentSource == 'Cash' ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.payments_rounded,
+                                size: 16,
+                                color: _paymentSource == 'Cash' ? const Color(0xFF10B981) : Colors.grey,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Cash',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _paymentSource == 'Cash'
+                                        ? const Color(0xFF10B981)
+                                        : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _paymentSource = 'Bank'),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: _paymentSource == 'Bank'
+                                ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _paymentSource == 'Bank'
+                                  ? const Color(0xFF3B82F6)
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              width: _paymentSource == 'Bank' ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.account_balance_rounded,
+                                size: 16,
+                                color: _paymentSource == 'Bank' ? const Color(0xFF3B82F6) : Colors.grey,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Bank',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _paymentSource == 'Bank'
+                                        ? const Color(0xFF3B82F6)
+                                        : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
                 // Amount Field
                 Text(
@@ -347,44 +461,11 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
                   controller: _descriptionController,
                   maxLength: 255,
                   decoration: InputDecoration(
-                    hintText: 'e.g. Lunch, Auto fare, Snacks',
+                    hintText: 'e.g. Lunch, Auto fare, Grocery',
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     counterText: '',
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // Payment Type indicator (Cash)
-                Row(
-                  children: [
-                    Text(
-                      'Payment Type: ',
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.money_rounded, size: 14, color: Color(0xFF10B981)),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Cash',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF059669),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 24),
 

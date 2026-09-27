@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../config/category_colors.dart';
 import '../providers/transaction_provider.dart';
+import '../widgets/add_edit_cash_expense_dialog.dart';
 import '../widgets/transaction_tile.dart';
 
 class TransactionsScreen extends StatefulWidget {
@@ -35,6 +36,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           appBar: AppBar(
             title: const Text('Transactions'),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.add_rounded),
+                tooltip: 'Add Expense',
+                onPressed: () => AddEditCashExpenseDialog.show(context),
+              ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.sort_rounded),
                 tooltip: 'Sort Transactions',
@@ -93,6 +99,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   },
                 ),
               ),
+
+              // Source Filter: All Sources | Bank | Cash (PRD Phase 8)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    _buildSourceChip('All', 'All Sources', Icons.all_inclusive_rounded, provider, isDark),
+                    const SizedBox(width: 8),
+                    _buildSourceChip('Bank', 'Bank', Icons.account_balance_rounded, provider, isDark),
+                    const SizedBox(width: 8),
+                    _buildSourceChip('Cash', 'Cash', Icons.payments_rounded, provider, isDark),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
 
               // Category Filter Chips
               SizedBox(
@@ -200,6 +221,35 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ],
           ),
         );
+      },
+    );
+  }
+
+  Widget _buildSourceChip(String value, String label, IconData icon, TransactionProvider provider, bool isDark) {
+    final isSelected = provider.selectedSource == value;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 14, color: isSelected ? Colors.white : (value == 'Cash' ? const Color(0xFF10B981) : (value == 'Bank' ? const Color(0xFF3B82F6) : Colors.grey))),
+      label: Text(label),
+      selected: isSelected,
+      selectedColor: value == 'Cash' ? const Color(0xFF10B981) : (value == 'Bank' ? const Color(0xFF3B82F6) : const Color(0xFF0F172A)),
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      labelStyle: GoogleFonts.inter(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isSelected
+              ? Colors.transparent
+              : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+        ),
+      ),
+      onSelected: (selected) {
+        if (selected) {
+          provider.setSourceFilter(value);
+        }
       },
     );
   }

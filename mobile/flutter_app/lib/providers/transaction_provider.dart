@@ -8,6 +8,7 @@ class TransactionProvider extends ChangeNotifier {
   List<UncertainReviewModel> _uncertainTransactions = [];
   bool _isLoading = false;
   String _selectedCategory = 'All';
+  String _selectedSource = 'All';
   String _searchQuery = '';
   bool _needsReviewOnly = false;
   String _sortBy = 'date';
@@ -18,6 +19,7 @@ class TransactionProvider extends ChangeNotifier {
   List<UncertainReviewModel> get uncertainTransactions => _uncertainTransactions;
   bool get isLoading => _isLoading;
   String get selectedCategory => _selectedCategory;
+  String get selectedSource => _selectedSource;
   String get searchQuery => _searchQuery;
   bool get needsReviewOnly => _needsReviewOnly;
   String get sortBy => _sortBy;
@@ -25,6 +27,13 @@ class TransactionProvider extends ChangeNotifier {
 
   List<TransactionModel> _filteredTransactions() {
     return _transactions.where((t) {
+      // Source filter
+      if (_selectedSource == 'Bank' && t.isCash) {
+        return false;
+      }
+      if (_selectedSource == 'Cash' && !t.isCash) {
+        return false;
+      }
       // Category filter
       if (_selectedCategory != 'All' &&
           t.category.toLowerCase() != _selectedCategory.toLowerCase()) {
@@ -50,6 +59,11 @@ class TransactionProvider extends ChangeNotifier {
 
   void setCategoryFilter(String category) {
     _selectedCategory = category;
+    notifyListeners();
+  }
+
+  void setSourceFilter(String source) {
+    _selectedSource = source;
     notifyListeners();
   }
 
