@@ -118,41 +118,37 @@ class _CashExpensesScreenState extends State<CashExpensesScreen> {
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton.extended(
+          floatingActionButton: FloatingActionButton(
             onPressed: () => AddEditCashExpenseDialog.show(context),
             backgroundColor: const Color(0xFF10B981),
             foregroundColor: Colors.white,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add Expense', style: TextStyle(fontWeight: FontWeight.w600)),
+            tooltip: 'Add Expense',
+            child: const Icon(Icons.add_rounded),
           ),
           body: Column(
             children: [
-              // Summary Banner
+              // Clean Compact Summary
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [const Color(0xFF064E3B), const Color(0xFF047857)]
-                        : [const Color(0xFFECFDF5), const Color(0xFFD1FAE5)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.payments_rounded, color: Colors.white, size: 24),
+                      child: const Icon(Icons.payments_rounded, color: Color(0xFF10B981), size: 20),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,35 +156,35 @@ class _CashExpensesScreenState extends State<CashExpensesScreen> {
                           Text(
                             'Recorded Cash Spending',
                             style: GoogleFonts.inter(
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46),
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             '₹${provider.totalCashSpending.toStringAsFixed(2)}',
                             style: GoogleFonts.inter(
-                              fontSize: 22,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF064E3B),
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: isDark ? 0.1 : 0.7),
-                        borderRadius: BorderRadius.circular(8),
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         '${expenses.length} item${expenses.length == 1 ? '' : 's'}',
                         style: GoogleFonts.inter(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : const Color(0xFF065F46),
+                          color: isDark ? Colors.white70 : Colors.black87,
                         ),
                       ),
                     ),
