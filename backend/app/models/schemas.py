@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # ----------------- Auth Schemas -----------------
 class UserCreate(BaseModel):
@@ -189,3 +189,68 @@ class ModelRetrainResponse(BaseModel):
     new_accuracy: float
     new_macro_f1: float
     retrained_samples_count: int
+
+
+# ----------------- Cash Expense Schemas -----------------
+class CashExpenseCreate(BaseModel):
+    amount: float = Field(..., gt=0, description="Expense amount (must be positive)")
+    category: str = Field(..., min_length=1, max_length=50, description="Expense category")
+    expense_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Expense date YYYY-MM-DD")
+    description: Optional[str] = Field(None, max_length=255, description="Optional note or description")
+
+    @field_validator("expense_date")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Invalid calendar date, must be valid YYYY-MM-DD")
+        return v
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("Category cannot be empty or whitespace")
+        return s
+
+
+class CashExpenseUpdate(BaseModel):
+    amount: Optional[float] = Field(None, gt=0, description="Expense amount (must be positive)")
+    category: Optional[str] = Field(None, min_length=1, max_length=50, description="Expense category")
+    expense_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Expense date YYYY-MM-DD")
+    description: Optional[str] = Field(None, max_length=255, description="Optional note or description")
+
+    @field_validator("expense_date")
+    @classmethod
+    def validate_date(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            try:
+                datetime.strptime(v, "%Y-%m-%d")
+            except ValueError:
+                raise ValueError("Invalid calendar date, must be valid YYYY-MM-DD")
+        return v
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            s = v.strip()
+            if not s:
+                raise ValueError("Category cannot be empty or whitespace")
+            return s
+        return v
+
+
+class CashExpenseResponse(BaseModel):
+    id: str
+    user_id: str
+    amount: float
+    category: str
+    expense_date: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)

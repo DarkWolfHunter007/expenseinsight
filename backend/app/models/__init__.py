@@ -28,7 +28,10 @@ from .schemas import (
     ForecastResponse,
     CategoryForecastDetail,
     ModelMetricsResponse,
-    ModelRetrainResponse
+    ModelRetrainResponse,
+    CashExpenseCreate,
+    CashExpenseUpdate,
+    CashExpenseResponse
 )
 
 __all__ = [
@@ -58,5 +61,9 @@ __all__ = [
     "ForecastResponse",
     "CategoryForecastDetail",
     "ModelMetricsResponse",
-    "ModelRetrainResponse"
+    "ModelRetrainResponse",
+    "CashExpense",
+    "CashExpenseCreate",
+    "CashExpenseUpdate",
+    "CashExpenseResponse"
 ]
