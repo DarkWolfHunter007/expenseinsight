@@ -101378,7 +101378,7 @@ s=A.Gj(B.dq,s,B.rF,q,"This Month",l?q:m.r)
 r=this.b
 r=r==null?q:r.e
 if(r==null){r=l?q:m.e
-if(r==null)r=0}r=A.Gj(B.c_,r,B.jp,"AI Statistical Estimate","Next Month Forecast",q)
+if(r==null)r=0}r=A.Gj(B.c_,r,B.jp,"AI Estimate (Bank + Cash)","Next Month Forecast",q)
 m=l?q:m.d
 return A.aQk(n,A.b([k,s,r,A.Gj(B.q,m==null?0:m,B.Ns,"Income minus Expenses","Net Savings",q)],t.p),o,12,12,B.yM,!0)},
 $S:617}
@@ -101404,7 +101404,7 @@ if(b.c&&h==null)return B.fU
 if(h==null||h.d===0||h.e===0){s=A.az(i,B.NP,B.k,i,new A.ay(B.c_.b9(0.15),i,i,i,i,i,B.b0),i,i,i,i,B.bS,i,i,i)
 r=this.a
 q=A.R("No Forecast Data Available",i,i,i,A.co().$3$color$fontSize$fontWeight(r?B.f:B.S,18,B.x),i,i,i)
-return A.dY(new A.aT(B.qX,A.aV(A.b([s,B.dc,q,B.bW,A.R("Upload at least 1-3 months of bank statements to unlock AI-powered spending forecasts and predictive category budgets.",i,i,i,A.a8().$3$color$fontSize$height(r?B.dZ:B.b2,13,1.5),B.cs,i,i)],t.p),B.r,B.cl,B.m),i),i,i)}p=h.y
+return A.dY(new A.aT(B.qX,A.aV(A.b([s,B.dc,q,B.bW,A.R("Upload at least 1-3 months of bank statements or record cash expenses to unlock AI-powered spending forecasts and predictive category budgets.",i,i,i,A.a8().$3$color$fontSize$height(r?B.dZ:B.b2,13,1.5),B.cs,i,i)],t.p),B.r,B.cl,B.m),i),i,i)}p=h.y
 s=B.c_.b9(0.12)
 r=A.aw(14)
 q=A.cx(B.c_.b9(0.3),B.p,1)
@@ -101412,7 +101412,7 @@ o=A.R(h.c,i,i,i,A.a8().$3$color$fontSize$fontWeight(B.c_,13,B.x),i,i,i)
 n=h.d
 m=this.a
 l=t.p
-r=A.az(i,A.aY(A.b([B.Ol,B.bN,A.ca(A.aV(A.b([o,A.R("Calculated using Holt-Winters exponential smoothing across "+n+" months of statement history.",i,i,i,A.a8().$2$color$fontSize(m?B.X:B.dn,11),i,i,i)],l),B.G,B.l,B.m),1)],l),B.r,B.l,B.m,0),B.k,i,new A.ay(s,i,q,r,i,i,B.z),i,i,i,i,B.cB,i,i,i)
+r=A.az(i,A.aY(A.b([B.Ol,B.bN,A.ca(A.aV(A.b([o,A.R("Calculated using Holt-Winters exponential smoothing across "+n+" months of spending history (bank + cash).",i,i,i,A.a8().$2$color$fontSize(m?B.X:B.dn,11),i,i,i)],l),B.G,B.l,B.m),1)],l),B.r,B.l,B.m,0),B.k,i,new A.ay(s,i,q,r,i,i,B.z),i,i,i,i,B.cB,i,i,i)
 q=A.aw(20)
 s=A.b([new A.bC(0,B.V,B.c_.b9(0.3),B.jO,16)],t.V)
 n=A.R("NEXT MONTH ESTIMATE",i,i,i,A.a8().$4$color$fontSize$fontWeight$letterSpacing(B.X,12,B.x,1.1),i,i,i)

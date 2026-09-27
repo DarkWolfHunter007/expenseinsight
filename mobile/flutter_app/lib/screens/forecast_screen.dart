@@ -66,7 +66,7 @@ class ForecastScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Upload at least 1-3 months of bank statements to unlock AI-powered spending forecasts and predictive category budgets.',
+                      'Upload at least 1-3 months of bank statements or record cash expenses to unlock AI-powered spending forecasts and predictive category budgets.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         fontSize: 13,
@@ -112,7 +112,7 @@ class ForecastScreen extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              'Calculated using Holt-Winters exponential smoothing across ${forecast.historicalMonthsCount} months of statement history.',
+                              'Calculated using Holt-Winters exponential smoothing across ${forecast.historicalMonthsCount} months of spending history (bank + cash).',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 color: isDark ? Colors.white70 : const Color(0xFF475569),

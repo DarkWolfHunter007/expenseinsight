@@ -193,7 +193,7 @@ class DashboardScreen extends StatelessWidget {
                           SpendingMetricCard(
                             title: 'Next Month Forecast',
                             amount: forecast?.totalForecast ?? (summary?.thisMonthSpent ?? 0.0),
-                            subtitle: 'AI Statistical Estimate',
+                            subtitle: 'AI Estimate (Bank + Cash)',
                             icon: Icons.auto_awesome_rounded,
                             accentColor: const Color(0xFF8B5CF6),
                           ),
