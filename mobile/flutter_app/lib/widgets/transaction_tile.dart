@@ -218,35 +218,21 @@ class TransactionTile extends StatelessWidget {
                 ),
                 if (transaction.isCash) ...[
                   const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.payments_rounded, size: 10, color: Color(0xFF10B981)),
-                        const SizedBox(width: 3),
-                        Text(
-                          'Cash',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF10B981),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildSourceBadge('Cash', const Color(0xFF10B981), Icons.payments_rounded),
+                ] else if (transaction.isUpi) ...[
+                  const SizedBox(width: 6),
+                  _buildSourceBadge('UPI', const Color(0xFF8B5CF6), Icons.qr_code_2_rounded),
+                ] else if (transaction.isManual) ...[
+                  const SizedBox(width: 6),
+                  _buildSourceBadge('Bank', const Color(0xFF3B82F6), Icons.account_balance_rounded),
                 ],
                 const Spacer(),
                 ConfidenceBadge(
                   confidence: transaction.categoryConfidence,
                   needsReview: transaction.needsReview,
                   isCash: transaction.isCash,
+                  isUpi: transaction.isUpi,
+                  isManual: transaction.isManual,
                 ),
               ],
             ),
@@ -261,10 +247,16 @@ class TransactionTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (transaction.isCash) ...[
-                    _detailRow('Payment Source:', 'Cash / Liquid Money', isDark),
+                  if (transaction.isManual) ...[
+                    _detailRow(
+                      'Payment Source:',
+                      transaction.isUpi
+                          ? 'UPI Payment'
+                          : (transaction.isCash ? 'Cash / Liquid Money' : 'Bank Transfer'),
+                      isDark,
+                    ),
                     const SizedBox(height: 6),
-                    _detailRow('Description / Note:', transaction.rawDescription, isDark),
+                    _detailRow('Description / Note:', transaction.cleanDescription ?? transaction.rawDescription, isDark),
                     const SizedBox(height: 6),
                     _detailRow('Entry Mode:', 'Manually Recorded', isDark),
                   ] else ...[
@@ -327,6 +319,32 @@ class TransactionTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSourceBadge(String label, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

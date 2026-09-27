@@ -62,6 +62,7 @@ class CashExpenseProvider extends ChangeNotifier {
     required String category,
     required String expenseDate,
     String? description,
+    String paymentMethod = 'cash',
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -73,6 +74,7 @@ class CashExpenseProvider extends ChangeNotifier {
         category: category,
         expenseDate: expenseDate,
         description: description,
+        paymentMethod: paymentMethod,
       );
 
       if (newExpense != null) {
@@ -97,6 +99,7 @@ class CashExpenseProvider extends ChangeNotifier {
     String? category,
     String? expenseDate,
     String? description,
+    String? paymentMethod,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -109,6 +112,7 @@ class CashExpenseProvider extends ChangeNotifier {
         category: category,
         expenseDate: expenseDate,
         description: description,
+        paymentMethod: paymentMethod,
       );
 
       if (updated != null) {

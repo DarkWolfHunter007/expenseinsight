@@ -9,6 +9,35 @@ from ..deps import get_current_user
 
 router = APIRouter()
 
+def _format_cash_to_transaction_response(c: CashExpense) -> TransactionResponse:
+    pm = getattr(c, "effective_payment_method", "cash")
+    clean_desc = getattr(c, "clean_description", c.description)
+    merchant_name = "Bank Transfer" if pm == "bank" else ("UPI Payment" if pm == "upi" else "Cash Payment")
+    return TransactionResponse(
+        id=c.id,
+        user_id=c.user_id,
+        statement_id=None,
+        date=c.expense_date,
+        raw_description=clean_desc or f"{pm.upper()} Expense ({c.category})",
+        clean_description=clean_desc,
+        merchant=merchant_name,
+        normalized_merchant=f"manual_{pm}",
+        amount=c.amount,
+        currency="INR",
+        transaction_type="cash_expense" if pm == "cash" else f"{pm}_expense",
+        cr_dr="DR",
+        balance=None,
+        reference_number=None,
+        category=c.category,
+        category_confidence=1.0,
+        category_source=f"{pm}_manual",
+        needs_review=False,
+        is_duplicate=False,
+        created_at=c.created_at,
+        source_type=pm,
+        payment_method=pm
+    )
+
 @router.get("", response_model=List[TransactionResponse])
 def get_transactions(
     category: Optional[str] = None,
@@ -16,7 +45,7 @@ def get_transactions(
     statement_id: Optional[str] = None,
     needs_review: Optional[bool] = None,
     transaction_type: Optional[str] = None,
-    source: Optional[str] = Query("all", enum=["all", "bank", "cash"]),
+    source: Optional[str] = Query("all", enum=["all", "bank", "cash", "upi"]),
     sort_by: str = Query("date", enum=["date", "amount", "merchant"]),
     order: str = Query("desc", enum=["asc", "desc"]),
     limit: int = Query(500, le=1000),
@@ -26,9 +55,10 @@ def get_transactions(
 ):
     """
     Retrieves user transactions with filtering, search, sorting, and pagination (PRD Section 33).
-    Reflects both bank transactions and manually entered cash expenses.
+    Reflects bank transactions and manually entered expenses across Bank, UPI, and Cash.
     """
     bank_items: List[TransactionResponse] = []
+    # Statement bank transactions are included for 'all' and 'bank'
     if source in ["all", "bank"] and transaction_type != "cash_expense":
         query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
@@ -55,7 +85,7 @@ def get_transactions(
         bank_items = [TransactionResponse.model_validate(t) for t in query.all()]
 
     cash_items: List[TransactionResponse] = []
-    if source in ["all", "cash"] and statement_id is None and needs_review is not True and (transaction_type is None or transaction_type in ["expense", "cash_expense"]):
+    if statement_id is None and needs_review is not True:
         cash_query = db.query(CashExpense).filter(CashExpense.user_id == current_user.id)
 
         if category and category.lower() != "all":
@@ -69,31 +99,11 @@ def get_transactions(
             )
 
         for c in cash_query.all():
-            cash_items.append(
-                TransactionResponse(
-                    id=c.id,
-                    user_id=c.user_id,
-                    statement_id=None,
-                    date=c.expense_date,
-                    raw_description=c.description or f"Cash Expense ({c.category})",
-                    clean_description=c.description,
-                    merchant="Cash Payment",
-                    normalized_merchant="cash_payment",
-                    amount=c.amount,
-                    currency="INR",
-                    transaction_type="cash_expense",
-                    cr_dr="DR",
-                    balance=None,
-                    reference_number=None,
-                    category=c.category,
-                    category_confidence=1.0,
-                    category_source="cash_manual",
-                    needs_review=False,
-                    is_duplicate=False,
-                    created_at=c.created_at,
-                    source_type="cash"
-                )
-            )
+            pm = c.effective_payment_method
+            # Match source filter
+            if source == "all" or source == pm:
+                if transaction_type is None or transaction_type in ["expense", "cash_expense", f"{pm}_expense"]:
+                    cash_items.append(_format_cash_to_transaction_response(c))
 
     combined = bank_items + cash_items
 
@@ -165,29 +175,7 @@ def get_transaction(
         CashExpense.user_id == current_user.id
     ).first()
     if cash:
-        return TransactionResponse(
-            id=cash.id,
-            user_id=cash.user_id,
-            statement_id=None,
-            date=cash.expense_date,
-            raw_description=cash.description or f"Cash Expense ({cash.category})",
-            clean_description=cash.description,
-            merchant="Cash Payment",
-            normalized_merchant="cash_payment",
-            amount=cash.amount,
-            currency="INR",
-            transaction_type="cash_expense",
-            cr_dr="DR",
-            balance=None,
-            reference_number=None,
-            category=cash.category,
-            category_confidence=1.0,
-            category_source="cash_manual",
-            needs_review=False,
-            is_duplicate=False,
-            created_at=cash.created_at,
-            source_type="cash"
-        )
+        return _format_cash_to_transaction_response(cash)
 
     raise HTTPException(status_code=404, detail="Transaction not found.")
 
@@ -216,29 +204,7 @@ def update_transaction_category(
             cash.category = payload.category.strip()
             db.commit()
             db.refresh(cash)
-            return TransactionResponse(
-                id=cash.id,
-                user_id=cash.user_id,
-                statement_id=None,
-                date=cash.expense_date,
-                raw_description=cash.description or f"Cash Expense ({cash.category})",
-                clean_description=cash.description,
-                merchant="Cash Payment",
-                normalized_merchant="cash_payment",
-                amount=cash.amount,
-                currency="INR",
-                transaction_type="cash_expense",
-                cr_dr="DR",
-                balance=None,
-                reference_number=None,
-                category=cash.category,
-                category_confidence=1.0,
-                category_source="cash_manual",
-                needs_review=False,
-                is_duplicate=False,
-                created_at=cash.created_at,
-                source_type="cash"
-            )
+            return _format_cash_to_transaction_response(cash)
         raise HTTPException(status_code=404, detail="Transaction not found.")
 
     old_cat = txn.category

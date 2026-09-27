@@ -210,6 +210,7 @@ class ApiService {
   Future<List<TransactionModel>> getTransactions({
     String? category,
     String? search,
+    String? source,
     bool? needsReview,
     String sortBy = 'date',
     String order = 'desc',
@@ -221,6 +222,7 @@ class ApiService {
       };
       if (category != null && category != 'All') queryParams['category'] = category;
       if (search != null && search.isNotEmpty) queryParams['search'] = search;
+      if (source != null && source.toLowerCase() != 'all') queryParams['source'] = source.toLowerCase();
       if (needsReview != null) queryParams['needs_review'] = needsReview.toString();
 
       final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.transactions}').replace(queryParameters: queryParams);
@@ -303,6 +305,7 @@ class ApiService {
     required String category,
     required String expenseDate,
     String? description,
+    String paymentMethod = 'cash',
   }) async {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.cashExpenses}');
@@ -310,6 +313,7 @@ class ApiService {
         'amount': amount,
         'category': category,
         'expense_date': expenseDate,
+        'payment_method': paymentMethod,
         if (description != null && description.isNotEmpty) 'description': description,
       });
       final response = await http.post(url, headers: _headers, body: body).timeout(const Duration(seconds: 5));
@@ -328,6 +332,7 @@ class ApiService {
     String? category,
     String? expenseDate,
     String? description,
+    String? paymentMethod,
   }) async {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.cashExpenses}/$id');
@@ -335,6 +340,7 @@ class ApiService {
       if (amount != null) map['amount'] = amount;
       if (category != null) map['category'] = category;
       if (expenseDate != null) map['expense_date'] = expenseDate;
+      if (paymentMethod != null) map['payment_method'] = paymentMethod;
       if (description != null) map['description'] = description;
 
       final response = await http.put(url, headers: _headers, body: json.encode(map)).timeout(const Duration(seconds: 5));

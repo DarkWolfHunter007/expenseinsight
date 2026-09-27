@@ -157,6 +157,7 @@ class CashExpense(Base):
     category = Column(String(50), nullable=False, index=True)
     description = Column(String(255), nullable=True)
     expense_date = Column(String(20), nullable=False, index=True)  # YYYY-MM-DD
+    payment_method = Column(String(20), default="cash", nullable=False, index=True)  # bank, upi, cash
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -164,5 +165,28 @@ class CashExpense(Base):
     user = relationship("User", back_populates="cash_expenses")
 
     @property
-    def source_type(self) -> str:
+    def effective_payment_method(self) -> str:
+        if self.payment_method and self.payment_method.lower() in ("bank", "upi", "cash"):
+            return self.payment_method.lower()
+        if self.description:
+            if self.description.startswith("[Bank]"):
+                return "bank"
+            if self.description.startswith("[UPI]"):
+                return "upi"
         return "cash"
+
+    @property
+    def clean_description(self) -> str | None:
+        if not self.description:
+            return None
+        d = self.description
+        for pfx in ("[Bank] ", "[Bank]", "[UPI] ", "[UPI]", "[Cash] ", "[Cash]"):
+            if d.startswith(pfx):
+                d = d[len(pfx):].strip()
+                break
+        return d or None
+
+    @property
+    def source_type(self) -> str:
+        return self.effective_payment_method
+

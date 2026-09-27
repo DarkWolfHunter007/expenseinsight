@@ -19,6 +19,15 @@ class CashExpenseService:
         clean_category = payload.category.strip()
         clean_desc = payload.description.strip() if payload.description else None
         amt = round(float(payload.amount), 2)
+        payment_method = (payload.payment_method or "cash").strip().lower()
+
+        # Backward compatibility: extract and strip legacy prefixes if present
+        if clean_desc:
+            for pfx, method in (("[Bank] ", "bank"), ("[Bank]", "bank"), ("[UPI] ", "upi"), ("[UPI]", "upi"), ("[Cash] ", "cash"), ("[Cash]", "cash")):
+                if clean_desc.startswith(pfx):
+                    payment_method = method
+                    clean_desc = clean_desc[len(pfx):].strip() or None
+                    break
 
         expense = CashExpense(
             user_id=user_id,
@@ -26,6 +35,7 @@ class CashExpenseService:
             category=clean_category,
             description=clean_desc,
             expense_date=payload.expense_date,
+            payment_method=payment_method,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -41,12 +51,13 @@ class CashExpenseService:
         end_date: Optional[str] = None,
         category: Optional[str] = None,
         search: Optional[str] = None,
+        payment_method: Optional[str] = None,
         sort_by: str = "expense_date",
         order: str = "desc",
         limit: int = 500,
         offset: int = 0
     ) -> List[CashExpense]:
-        """Lists user's cash expenses with optional date range, category, and text search."""
+        """Lists user's cash expenses with optional date range, category, payment method, and text search."""
         query = self.db.query(CashExpense).filter(CashExpense.user_id == user_id)
 
         if start_date:
@@ -55,6 +66,8 @@ class CashExpenseService:
             query = query.filter(CashExpense.expense_date <= end_date)
         if category and category.lower() != "all":
             query = query.filter(CashExpense.category.ilike(category))
+        if payment_method and payment_method.lower() != "all":
+            query = query.filter(CashExpense.payment_method == payment_method.lower())
         if search:
             search_pat = f"%{search}%"
             query = query.filter(
@@ -95,8 +108,17 @@ class CashExpenseService:
             expense.category = payload.category.strip()
         if payload.expense_date is not None:
             expense.expense_date = payload.expense_date
+        if payload.payment_method is not None:
+            expense.payment_method = payload.payment_method.strip().lower()
         if payload.description is not None:
-            expense.description = payload.description.strip() if payload.description else None
+            clean_desc = payload.description.strip() if payload.description else None
+            if clean_desc:
+                for pfx, method in (("[Bank] ", "bank"), ("[Bank]", "bank"), ("[UPI] ", "upi"), ("[UPI]", "upi"), ("[Cash] ", "cash"), ("[Cash]", "cash")):
+                    if clean_desc.startswith(pfx):
+                        expense.payment_method = method
+                        clean_desc = clean_desc[len(pfx):].strip() or None
+                        break
+            expense.description = clean_desc
 
         expense.updated_at = datetime.utcnow()
         self.db.commit()

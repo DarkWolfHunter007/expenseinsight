@@ -27,11 +27,15 @@ class TransactionProvider extends ChangeNotifier {
 
   List<TransactionModel> _filteredTransactions() {
     return _transactions.where((t) {
-      // Source filter
-      if (_selectedSource == 'Bank' && t.isCash) {
+      // Source filter (All, Bank, UPI, Cash)
+      final src = _selectedSource.toLowerCase();
+      if (src == 'bank' && !t.isBank) {
         return false;
       }
-      if (_selectedSource == 'Cash' && !t.isCash) {
+      if (src == 'upi' && !t.isUpi) {
+        return false;
+      }
+      if (src == 'cash' && !t.isCash) {
         return false;
       }
       // Category filter
@@ -65,6 +69,7 @@ class TransactionProvider extends ChangeNotifier {
   void setSourceFilter(String source) {
     _selectedSource = source;
     notifyListeners();
+    fetchTransactions();
   }
 
   void setSearchQuery(String query) {
@@ -91,6 +96,7 @@ class TransactionProvider extends ChangeNotifier {
       _transactions = await _api.getTransactions(
         category: _selectedCategory != 'All' ? _selectedCategory : null,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        source: _selectedSource.toLowerCase() != 'all' ? _selectedSource.toLowerCase() : null,
         needsReview: _needsReviewOnly ? true : null,
         sortBy: _sortBy,
         order: _order,

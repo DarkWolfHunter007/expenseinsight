@@ -49,6 +49,7 @@ class FakeApiService extends Fake implements ApiService {
     required String category,
     required String expenseDate,
     String? description,
+    String paymentMethod = 'cash',
   }) async {
     final newExp = CashExpenseModel(
       id: 'test-new',
@@ -57,6 +58,7 @@ class FakeApiService extends Fake implements ApiService {
       category: category,
       description: description,
       expenseDate: expenseDate,
+      paymentMethod: paymentMethod,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -71,6 +73,7 @@ class FakeApiService extends Fake implements ApiService {
     String? category,
     String? expenseDate,
     String? description,
+    String? paymentMethod,
   }) async {
     final idx = fakeExpenses.indexWhere((e) => e.id == id);
     if (idx != -1) {
@@ -82,6 +85,7 @@ class FakeApiService extends Fake implements ApiService {
         category: category ?? existing.category,
         description: description ?? existing.description,
         expenseDate: expenseDate ?? existing.expenseDate,
+        paymentMethod: paymentMethod ?? existing.paymentMethod,
         createdAt: existing.createdAt,
         updatedAt: DateTime.now(),
       );

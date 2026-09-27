@@ -100,7 +100,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
               ),
 
-              // Source Filter: All Sources | Bank | Cash (PRD Phase 8)
+              // Source Filter: All Sources | Bank | UPI | Cash
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -109,6 +109,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     _buildSourceChip('All', 'All Sources', Icons.all_inclusive_rounded, provider, isDark),
                     const SizedBox(width: 8),
                     _buildSourceChip('Bank', 'Bank', Icons.account_balance_rounded, provider, isDark),
+                    const SizedBox(width: 8),
+                    _buildSourceChip('UPI', 'UPI', Icons.qr_code_2_rounded, provider, isDark),
                     const SizedBox(width: 8),
                     _buildSourceChip('Cash', 'Cash', Icons.payments_rounded, provider, isDark),
                   ],
@@ -237,11 +239,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildSourceChip(String value, String label, IconData icon, TransactionProvider provider, bool isDark) {
     final isSelected = provider.selectedSource == value;
+    Color chipColor;
+    if (value == 'Cash') {
+      chipColor = const Color(0xFF10B981);
+    } else if (value == 'Bank') {
+      chipColor = const Color(0xFF3B82F6);
+    } else if (value == 'UPI') {
+      chipColor = const Color(0xFF8B5CF6);
+    } else {
+      chipColor = const Color(0xFF0F172A);
+    }
+
     return ChoiceChip(
-      avatar: Icon(icon, size: 14, color: isSelected ? Colors.white : (value == 'Cash' ? const Color(0xFF10B981) : (value == 'Bank' ? const Color(0xFF3B82F6) : Colors.grey))),
+      avatar: Icon(icon, size: 14, color: isSelected ? Colors.white : (value == 'All' ? Colors.grey : chipColor)),
       label: Text(label),
       selected: isSelected,
-      selectedColor: value == 'Cash' ? const Color(0xFF10B981) : (value == 'Bank' ? const Color(0xFF3B82F6) : const Color(0xFF0F172A)),
+      selectedColor: chipColor,
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       labelStyle: GoogleFonts.inter(
         fontSize: 11,

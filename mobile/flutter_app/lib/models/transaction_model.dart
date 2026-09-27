@@ -19,7 +19,8 @@ class TransactionModel {
   final bool needsReview;
   final bool isDuplicate;
   final DateTime createdAt;
-  final String sourceType; // 'bank' or 'cash'
+  final String sourceType; // 'bank', 'upi', 'cash'
+  final String? paymentMethod;
 
   TransactionModel({
     required this.id,
@@ -43,15 +44,22 @@ class TransactionModel {
     required this.isDuplicate,
     required this.createdAt,
     this.sourceType = 'bank',
+    this.paymentMethod,
   });
 
-  bool get isCash => sourceType == 'cash' || transactionType == 'cash_expense';
-  bool get isExpense => (crDr == 'DR' && transactionType != 'transfer') || isCash;
+  bool get isUpi => sourceType.toLowerCase() == 'upi' || paymentMethod?.toLowerCase() == 'upi';
+  bool get isCash => (sourceType.toLowerCase() == 'cash' || paymentMethod?.toLowerCase() == 'cash' || transactionType == 'cash_expense') && !isUpi;
+  bool get isBank => !isCash && !isUpi;
+  bool get isManual => statementId == null;
+
+  bool get isExpense => (crDr == 'DR' && transactionType != 'transfer') || isCash || isUpi;
   bool get isIncome => crDr == 'CR' || transactionType == 'income';
   bool get isTransfer => transactionType == 'transfer' || transactionType == 'cash_withdrawal';
 
   String get confidenceLevel {
     if (isCash) return 'Cash';
+    if (isUpi) return 'UPI';
+    if (isManual) return 'Manual';
     if (categoryConfidence >= 0.85) return 'High';
     if (categoryConfidence >= 0.60) return 'Medium';
     return 'Low';
@@ -82,6 +90,7 @@ class TransactionModel {
           ? DateTime.tryParse(json['created_at']) ?? DateTime.now()
           : DateTime.now(),
       sourceType: json['source_type'] ?? (json['transaction_type'] == 'cash_expense' ? 'cash' : 'bank'),
+      paymentMethod: json['payment_method'],
     );
   }
 }

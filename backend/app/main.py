@@ -16,6 +16,18 @@ from backend.ml.preprocessing.merchant_normalizer import DEFAULT_MERCHANT_KB
 # Create all database tables
 Base.metadata.create_all(bind=engine)
 
+# Schema evolution: ensure payment_method column exists in cash_expenses
+try:
+    with engine.connect() as _conn:
+        _cursor = _conn.connection.cursor()
+        _cursor.execute("PRAGMA table_info(cash_expenses)")
+        _cols = [row[1] for row in _cursor.fetchall()]
+        if _cols and "payment_method" not in _cols:
+            _cursor.execute("ALTER TABLE cash_expenses ADD COLUMN payment_method VARCHAR(20) DEFAULT 'cash'")
+            _conn.connection.commit()
+except Exception:
+    pass
+
 app = FastAPI(
     title="ExpenseInsight API",
     description="Intelligent personal-finance API for bank-statement extraction, normalization, categorization, analytics, and forecasting.",
@@ -63,6 +75,18 @@ def startup_event():
                 )
                 db.add(m)
             db.commit()
+
+        # Schema evolution: ensure payment_method column exists in cash_expenses
+        with engine.connect() as conn:
+            try:
+                cursor = conn.connection.cursor()
+                cursor.execute("PRAGMA table_info(cash_expenses)")
+                cols = [row[1] for row in cursor.fetchall()]
+                if cols and "payment_method" not in cols:
+                    cursor.execute("ALTER TABLE cash_expenses ADD COLUMN payment_method VARCHAR(20) DEFAULT 'cash'")
+                    conn.connection.commit()
+            except Exception:
+                pass
     finally:
         db.close()
 

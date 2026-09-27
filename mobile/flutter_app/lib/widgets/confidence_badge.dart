@@ -4,12 +4,16 @@ class ConfidenceBadge extends StatelessWidget {
   final double confidence;
   final bool needsReview;
   final bool isCash;
+  final bool isUpi;
+  final bool isManual;
 
   const ConfidenceBadge({
     super.key,
     required this.confidence,
     this.needsReview = false,
     this.isCash = false,
+    this.isUpi = false,
+    this.isManual = false,
   });
 
   @override
@@ -24,6 +28,16 @@ class ConfidenceBadge extends StatelessWidget {
       bgColor = const Color(0xFFD1FAE5);
       label = 'Cash';
       icon = Icons.payments_rounded;
+    } else if (isUpi) {
+      color = const Color(0xFF8B5CF6);
+      bgColor = const Color(0xFFF3E8FF);
+      label = 'UPI';
+      icon = Icons.qr_code_2_rounded;
+    } else if (isManual) {
+      color = const Color(0xFF3B82F6);
+      bgColor = const Color(0xFFDBEAFE);
+      label = 'Manual';
+      icon = Icons.account_balance_rounded;
     } else if (needsReview || confidence < 0.60) {
       color = const Color(0xFFEF4444);
       bgColor = const Color(0xFFFEE2E2);

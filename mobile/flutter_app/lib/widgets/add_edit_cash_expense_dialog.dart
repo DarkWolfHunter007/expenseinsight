@@ -59,10 +59,15 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
       _selectedCategory = availableCategories.isNotEmpty ? availableCategories.first : 'Food';
     }
 
-    if (exp != null && exp.description != null && exp.description!.startsWith('[Bank]')) {
-      _paymentSource = 'Bank';
-    } else if (exp != null && exp.description != null && exp.description!.startsWith('[UPI]')) {
-      _paymentSource = 'UPI';
+    if (exp != null) {
+      final method = exp.paymentMethod.toLowerCase();
+      if (method == 'bank') {
+        _paymentSource = 'Bank';
+      } else if (method == 'upi') {
+        _paymentSource = 'UPI';
+      } else {
+        _paymentSource = 'Cash';
+      }
     } else {
       _paymentSource = 'Cash';
     }
@@ -117,12 +122,8 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
 
     final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
     final rawDesc = _descriptionController.text.trim();
-    String? finalDesc = rawDesc.isNotEmpty ? rawDesc : null;
-    if (_paymentSource == 'Bank' && (finalDesc == null || !finalDesc.startsWith('[Bank]'))) {
-      finalDesc = finalDesc != null ? '[Bank] $finalDesc' : '[Bank]';
-    } else if (_paymentSource == 'UPI' && (finalDesc == null || !finalDesc.startsWith('[UPI]'))) {
-      finalDesc = finalDesc != null ? '[UPI] $finalDesc' : '[UPI]';
-    }
+    final finalDesc = rawDesc.isNotEmpty ? rawDesc : null;
+    final paymentMethod = _paymentSource.toLowerCase();
 
     final cashProv = Provider.of<CashExpenseProvider>(context, listen: false);
 
@@ -134,6 +135,7 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
         category: _selectedCategory,
         expenseDate: formattedDate,
         description: finalDesc,
+        paymentMethod: paymentMethod,
       );
     } else {
       success = await cashProv.createCashExpense(
@@ -141,6 +143,7 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
         category: _selectedCategory,
         expenseDate: formattedDate,
         description: finalDesc,
+        paymentMethod: paymentMethod,
       );
     }
 

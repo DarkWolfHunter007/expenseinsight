@@ -77,6 +77,7 @@ class TransactionResponse(BaseModel):
     is_duplicate: bool
     created_at: datetime
     source_type: Optional[str] = "bank"
+    payment_method: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -206,6 +207,17 @@ class CashExpenseCreate(BaseModel):
     category: str = Field(..., min_length=1, max_length=50, description="Expense category")
     expense_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Expense date YYYY-MM-DD")
     description: Optional[str] = Field(None, max_length=255, description="Optional note or description")
+    payment_method: Optional[str] = Field("cash", description="Payment method: bank, upi, or cash")
+
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, v: Optional[str]) -> str:
+        if v is None:
+            return "cash"
+        s = v.strip().lower()
+        if s not in ["bank", "upi", "cash"]:
+            raise ValueError("Payment method must be one of: bank, upi, cash")
+        return s
 
     @field_validator("expense_date")
     @classmethod
@@ -230,6 +242,17 @@ class CashExpenseUpdate(BaseModel):
     category: Optional[str] = Field(None, min_length=1, max_length=50, description="Expense category")
     expense_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Expense date YYYY-MM-DD")
     description: Optional[str] = Field(None, max_length=255, description="Optional note or description")
+    payment_method: Optional[str] = Field(None, description="Payment method: bank, upi, or cash")
+
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            s = v.strip().lower()
+            if s not in ["bank", "upi", "cash"]:
+                raise ValueError("Payment method must be one of: bank, upi, cash")
+            return s
+        return v
 
     @field_validator("expense_date")
     @classmethod
@@ -259,6 +282,7 @@ class CashExpenseResponse(BaseModel):
     category: str
     expense_date: str
     description: Optional[str] = None
+    payment_method: str = "cash"
     created_at: datetime
     updated_at: Optional[datetime] = None
 
