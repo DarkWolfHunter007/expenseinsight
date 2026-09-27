@@ -110,6 +110,19 @@ class _CategoryDonutChartState extends State<CategoryDonutChart> {
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
+                  if (touchedIndex != -1 &&
+                      touchedIndex < displayCategories.length &&
+                      displayCategories[touchedIndex].cashAmount > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Bank: ₹${displayCategories[touchedIndex].bankAmount.toStringAsFixed(0)} • Cash: ₹${displayCategories[touchedIndex].cashAmount.toStringAsFixed(0)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
