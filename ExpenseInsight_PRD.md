@@ -2165,3 +2165,37 @@ The central innovation is not merely displaying charts.
 It is building an end-to-end pipeline that transforms unstructured
 bank-statement information into structured, categorized, explainable,
 and forward-looking financial insights.
+
+------------------------------------------------------------------------
+
+# 57. Cash / Liquid Money Expense Tracking (Two-Source Spending Model)
+
+### 57.1 Problem & Motivation
+Real-world spending is not confined to bank accounts, debit cards, or credit lines. Everyday expenditures—such as street food, auto-rickshaw fares, cash tips, local market groceries, and informal services—are paid using physical cash or liquid money that never surfaces in bank statement PDFs.
+
+Without cash tracking, an expense tracking system under-reports true cost of living. If a user spends ₹18,500 via bank transactions and ₹4,200 in physical cash during a month, reporting ₹18,500 produces inaccurate budgeting, misleading savings figures, and distorted forecasts.
+
+### 57.2 Core Architecture: Strict Two-Source Separation
+ExpenseInsight implements a two-source spending model:
+$$\text{Total Real Spending} = \text{Bank Transaction Spending} + \text{Cash Expense Spending}$$
+
+1. **`BANK_TRANSACTION`**: Extracted from bank statement PDFs with merchant descriptions, balances, reference numbers, and automated ML categorization.
+2. **`CASH_EXPENSE`**: Manually logged by the user with exact amounts, user-assigned categories, dates, and optional notes.
+3. **No Synthetic Pollution**: Under no circumstances are cash expenses stored as "fake" or "simulated" bank transactions. They remain in their own first-class database entity (`CashExpense`).
+
+### 57.3 User Ownership & Lifecycle Independence
+- Cash expenses are tied directly to the user (`User.id`), not to any uploaded bank statement (`statement_id`).
+- When a user uploads a new statement, existing cash expenses are never modified or duplicated.
+- When a user deletes a bank statement, all bank transactions and statement records are removed cleanly via database cascades, but **cash expenses remain completely intact**.
+- Cross-user data isolation is strictly enforced via JWT authentication; no user may read, edit, or delete another user's cash records.
+
+### 57.4 Date Range Boundaries & Multi-Month Analytics
+- Statement analytics periods ($[T_{\text{start}}, T_{\text{end}}]$) strictly filter cash expenses using their `expense_date`.
+- Cash entries occurring on or within the statement window are aggregated into total spending, category breakdowns, and monthly spending.
+- Cash entries occurring outside the window are excluded from statement analytics, preventing date leakage across months.
+- Cash expenses are grouped by their transaction occurrence date (`expense_date`), never by system creation timestamp (`created_at`).
+
+### 57.5 Predictive Forecasting Integration
+- Time-series forecasting algorithms (Holt-Winters exponential smoothing and ARIMA) utilize daily aggregated spending series combining both bank debits and cash outflows.
+- Cash expenses provide historical continuity even if bank statements have gaps or are temporarily absent.
+

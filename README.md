@@ -29,9 +29,12 @@ Bank Statement PDF (1-Month to 16+ Page Multi-Month e-Passbooks)
 ```
 
 ### Highlights
+- **Two-Source Spending Model (Bank + Cash)**: Tracks real personal spending combining uploaded bank statements with manually entered physical cash/liquid-money expenses (`Total Spending = Bank Spending + Cash Spending`).
+- **Date-Range Aggregation**: Cash expenses are aggregated strictly by `expense_date` matching statement or custom date filter windows (e.g. 1-month, 3-month, 6-month, or arbitrary periods).
+- **Statement Deletion Resilience**: Cash expenses belong directly to the authenticated user and survive bank statement deletion without data loss or foreign key cascade destruction.
 - **Multi-Bank, Multi-Page Ingestion**: Handles 16+ page Canara e-passbooks, HDFC, SBI, and ICICI statements with multi-line description parsing and IFSC-based bank detection.
 - **Uncertainty & Active Learning**: Uncertain transactions (<60% confidence) are assigned to `"Uncategorized"`, where the review UI highlights and places the active tick mark (✔) on `"Uncategorized"`. User corrections update future categorization automatically.
-- **Zero-Residue Deletion**: Deleting statements cascades through transactions, category corrections, and forecasts with SQLite foreign-key enforcement.
+- **Zero-Residue Statement Deletion**: Deleting statements cascades through bank transactions, category corrections, and forecasts with SQLite foreign-key enforcement while preserving independent cash records.
 - **Decoupled ML Pipeline**: Standalone `ml_training/` folder with dataset generators, evaluation metrics, and retraining scripts separated from inference runtime.
 - **1-Click Live Sharing**: `python share_live.py` creates an instant public HTTPS tunnel via Cloudflare and displays a scannable QR code directly in the terminal.
 
@@ -52,12 +55,12 @@ expenseinsight/
 ├── backend/                        # 🚀 Production Backend & Inference Service
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── endpoints/          # Auth, Statements, Transactions, Analytics, Forecast, Model
+│   │   │   ├── endpoints/          # Auth, Statements, Transactions, Cash Expenses, Analytics, Forecast, Model
 │   │   │   ├── deps.py             # JWT Token Auth & Guest Session Management
 │   │   │   └── api.py              # Central API Router
 │   │   ├── database/               # SQLAlchemy ORM Session & Foreign Key Engine
-│   │   ├── models/                 # DB Models (User, Statement, Transaction, Forecast) & Schemas
-│   │   ├── services/               # PDF Extractor, Parser, Analytics, Forecaster, Pipeline
+│   │   ├── models/                 # DB Models (User, Statement, Transaction, CashExpense, Forecast) & Schemas
+│   │   ├── services/               # PDF Extractor, Parser, Cash Expense, Analytics, Forecaster, Pipeline
 │   │   └── main.py                 # FastAPI Application Entrypoint
 │   ├── ml/                         # Production Inference ML Modules & Model Weights
 │   │   ├── categorization/         # ExpenseClassifier & HybridCategorizer
@@ -181,25 +184,48 @@ python ml_training/scripts/evaluate_forecaster.py
 python ml_training/scripts/generate_sample_statements.py
 ```
 
-### Model Performance Benchmark
+### Model Performance (Production)
 
 | Model Architecture | Accuracy | Macro F1 | Weighted F1 | Latency |
 | :--- | :--- | :--- | :--- | :--- |
-| **TF-IDF + Calibrated Logistic Regression (Production)** | **99.93%** | **0.9987** | **0.9993** | **< 1.5ms** |
-| TF-IDF + Calibrated LinearSVC | 99.87% | 0.9979 | 0.9987 | < 2.0ms |
-| TF-IDF + Random Forest | 72.07% | 0.8389 | 0.7420 | 12.0ms |
+| **TF-IDF + Calibrated LinearSVC (SVM)** | **99.42%** | **0.9960** | **0.9942** | **< 1.8ms** |
+
+---
+
+## 💵 Cash & Liquid Money Expense Tracking
+
+ExpenseInsight incorporates a **Two-Source Spending Model**:
+$$\text{Real Total Spending} = \text{Bank Transaction Spending} + \text{Cash Expense Spending}$$
+
+### Key Architectural Tenets:
+1. **Clear Entity Separation**: Cash expenses are represented via a dedicated `CashExpense` domain model and are **never** forged as fake bank transactions.
+2. **Statement Independence**: Cash expenses belong directly to the authenticated user (`User.id`), not to a statement. Deleting or replacing a bank statement cleanly purges bank transactions while preserving all cash entries without data corruption.
+3. **Date-Range Aggregation**: When analyzing spending for a statement or custom period $[T_{\text{start}}, T_{\text{end}}]$, only cash expenses whose `expense_date` falls inclusively within the period are aggregated.
+4. **Unified Analytics & Forecasting**:
+   - `/analytics/summary`: Returns `bank_spending`, `cash_spending`, and `total_spending`.
+   - `/analytics/monthly`: Breaks down monthly expenditure into bank vs cash contributions.
+   - `/forecast`: Holt-Winters and ARIMA models forecast forward total spending using combined bank debits and cash expense patterns.
+
+### Cash Expense REST API:
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/cash-expenses` | List user cash expenses (supports `start_date`, `end_date`, `category`, `search`, `sort_by`, `order`) |
+| `POST` | `/cash-expenses` | Record a new cash expense (`amount`, `category`, `expense_date`, optional `description`) |
+| `GET` | `/cash-expenses/{id}` | Retrieve details of a specific cash expense |
+| `PUT` | `/cash-expenses/{id}` | Update an existing cash expense |
+| `DELETE` | `/cash-expenses/{id}` | Delete a cash expense and recalculate spending analytics immediately |
 
 ---
 
 ## 🛠️ Running Automated Tests
 
 ```bash
-# Backend pytest suite (9/9 unit & integration tests)
-pytest backend/tests/test_backend.py -v
+# Backend pytest suite (19/19 passing unit, isolation, boundary, and scenario tests)
+pytest backend/tests/ -v
 # (or inside Docker)
-docker compose exec backend pytest backend/tests/test_backend.py -v
+docker compose exec backend pytest backend/tests/ -v
 
-# Flutter analyze and widget test suite
+# Flutter test suite (10/10 passing unit, provider, and widget tests)
 cd mobile/flutter_app
 flutter analyze
 flutter test
