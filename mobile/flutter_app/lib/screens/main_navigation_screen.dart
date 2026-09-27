@@ -158,9 +158,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             },
             destinations: [
               const NavigationRequest(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard_rounded),
-                label: 'Overview',
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
               ),
               NavigationRequest(
                 icon: Badge(
@@ -179,7 +179,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               const NavigationRequest(
                 icon: Icon(Icons.auto_awesome_outlined),
                 selectedIcon: Icon(Icons.auto_awesome_rounded),
-                label: 'Forecast',
+                label: 'Insights / Forecast',
               ),
               const NavigationRequest(
                 icon: Icon(Icons.more_horiz_outlined),

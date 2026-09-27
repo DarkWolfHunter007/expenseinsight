@@ -51,7 +51,7 @@ void main() {
         expect(find.descendant(of: navBar, matching: find.text('More')), findsNothing);
 
         // Icons are visible and rendered inside NavigationBar
-        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.dashboard_rounded)), findsOneWidget); // Selected
+        expect(find.descendant(of: navBar, matching: find.byIcon(Icons.home_rounded)), findsOneWidget); // Selected
         expect(find.descendant(of: navBar, matching: find.byIcon(Icons.receipt_long_outlined)), findsOneWidget);
         expect(find.descendant(of: navBar, matching: find.byIcon(Icons.add_circle_outline_rounded)), findsOneWidget);
         expect(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_outlined)), findsOneWidget);
