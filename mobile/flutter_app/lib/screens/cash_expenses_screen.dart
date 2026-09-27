@@ -94,11 +94,11 @@ class _CashExpensesScreenState extends State<CashExpensesScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Cash Expenses'),
+            title: const Text('Cash Expenses Ledger'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.add_circle_outline_rounded),
-                tooltip: 'Add Cash Expense',
+                tooltip: 'Add Expense',
                 onPressed: () => AddEditCashExpenseDialog.show(context),
               ),
               PopupMenuButton<String>(
@@ -123,7 +123,7 @@ class _CashExpensesScreenState extends State<CashExpensesScreen> {
             backgroundColor: const Color(0xFF10B981),
             foregroundColor: Colors.white,
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Add Cash Expense', style: TextStyle(fontWeight: FontWeight.w600)),
+            label: const Text('Add Expense', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
           body: Column(
             children: [
@@ -343,7 +343,7 @@ class _CashExpensesScreenState extends State<CashExpensesScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Add Cash Expense', style: TextStyle(fontWeight: FontWeight.w600)),
+              label: const Text('Add Expense', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ],
         ),
