@@ -113,6 +113,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           bottomNavigationBar: NavigationBar(
             labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
             selectedIndex: _selectedIndex,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
             onDestinationSelected: (int index) {
               setState(() {
                 _selectedIndex = index;
@@ -167,5 +168,17 @@ class NavigationRequest extends NavigationDestination {
     required super.icon,
     super.selectedIcon,
     required super.label,
+    super.tooltip,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    return NavigationDestination(
+      key: key,
+      icon: icon,
+      selectedIcon: selectedIcon,
+      label: '',
+      tooltip: tooltip ?? label,
+    );
+  }
 }
