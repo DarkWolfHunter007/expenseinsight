@@ -101,7 +101,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
 
               // Source Filter: All Sources | Bank | Cash (PRD Phase 8)
-              Padding(
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
@@ -165,15 +166,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
                   children: [
-                    Text(
-                      '${transactions.length} Transactions',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : Colors.black54,
+                    Expanded(
+                      child: Text(
+                        '${transactions.length} Transactions',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     FilterChip(
                       label: const Text('Uncertain Only'),
                       selected: provider.needsReviewOnly,

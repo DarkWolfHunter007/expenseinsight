@@ -96,7 +96,7 @@ void main() {
       });
     }
 
-    testWidgets('Tapping Forecast hero card on mobile switches to Forecast screen while preserving NavigationBar', (WidgetTester tester) async {
+    testWidgets('Full 13-step mobile navigation sequence: Forecast and Transactions preserve single NavigationBar', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(375, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -104,32 +104,63 @@ void main() {
       await tester.pumpWidget(createNavigationApp());
       await tester.pump();
 
-      // Home has NavigationBar and Forecast hero card
+      // Step 1 & 2: Open Home, confirm single bottom NavigationBar exists
       final navBar = find.byType(NavigationBar);
       expect(navBar, findsOneWidget);
       expect(find.text('AI FORECAST'), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.byIcon(Icons.home_rounded)), findsOneWidget);
 
-      // Tap View on Forecast Hero Card
+      // Step 3 & 4: Tap AI Forecast card -> Forecast screen opens
       await tester.tap(find.text('View'));
       await tester.pump();
-
-      // ForecastScreen is displayed
       expect(find.text('Expense Forecasting'), findsOneWidget);
 
-      // Crucial requirement: NavigationBar is STILL PRESENT!
+      // Step 5 & 6: Bottom NavigationBar remains visible (single instance), Forecast tab selected
       expect(find.byType(NavigationBar), findsOneWidget);
-
-      // Forecast destination is now selected
       expect(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_rounded)), findsOneWidget);
 
-      // Tap Home icon
+      // Step 7 & 8: Tap Transactions from bottom nav -> Transactions opens
+      await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.receipt_long_outlined)));
+      await tester.pump();
+      expect(find.widgetWithText(AppBar, 'Transactions'), findsOneWidget);
+
+      // Step 9: Bottom NavigationBar remains visible, Transactions selected
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.byIcon(Icons.receipt_long_rounded)), findsOneWidget);
+
+      // Step 10 & 11: Tap Home -> Home opens
       await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.home_outlined)));
       await tester.pump();
-
-      // Home returns with NavigationBar
       expect(find.text('AI FORECAST'), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.descendant(of: navBar, matching: find.byIcon(Icons.home_rounded)), findsOneWidget);
+
+      // Step 12 & 13: Tap Forecast from bottom navigation -> Forecast opens with bottom nav
+      await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_outlined)));
+      await tester.pump();
+      expect(find.text('Expense Forecasting'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_rounded)), findsOneWidget);
+
+      // Return to Home and test "View All" on Recent Transactions
+      await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.home_outlined)));
+      await tester.pump();
+      expect(find.text('AI FORECAST'), findsOneWidget);
+
+      // Drag up to scroll down to Recent Transactions
+      await tester.drag(find.text('AI FORECAST'), const Offset(0, -500));
+      await tester.pump();
+
+      expect(find.text('RECENT TRANSACTIONS'), findsOneWidget);
+
+      // Tap "View All" button
+      await tester.tap(find.text('View All'));
+      await tester.pump();
+
+      // Transactions opens with parent NavigationBar preserved
+      expect(find.widgetWithText(AppBar, 'Transactions'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.byIcon(Icons.receipt_long_rounded)), findsOneWidget);
     });
   });
 }
