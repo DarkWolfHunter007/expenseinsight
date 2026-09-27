@@ -15,6 +15,7 @@ import '../widgets/monthly_trend_chart.dart';
 import '../widgets/recurring_subscriptions_card.dart';
 import '../widgets/server_settings_dialog.dart';
 import '../widgets/spending_metric_card.dart';
+import 'cash_expenses_screen.dart';
 import 'review_uncertain_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -434,34 +435,45 @@ class DashboardScreen extends StatelessWidget {
               // Cash Spending
               Expanded(
                 flex: 3,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const CashExpensesScreen()),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.payments_rounded, size: 12, color: Color(0xFF10B981)),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Cash',
-                            style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '₹${cashSpent.toStringAsFixed(0)}',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
-                      ),
-                    ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.payments_rounded, size: 12, color: Color(0xFF10B981)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Cash',
+                              style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.w500),
+                            ),
+                            const Spacer(),
+                            const Icon(Icons.arrow_forward_ios_rounded, size: 9, color: Color(0xFF10B981)),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '₹${cashSpent.toStringAsFixed(0)}',
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
