@@ -274,6 +274,8 @@ class ForecastScreen extends StatelessWidget {
                               ),
                               Text(
                                 'Recent avg: ${currencyFormat.format(detail.historicalRecentAvg)} • Range: [${currencyFormat.format(detail.lowerBound)} - ${currencyFormat.format(detail.upperBound)}]',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.inter(fontSize: 11, color: Colors.grey),
                               ),
                             ],
