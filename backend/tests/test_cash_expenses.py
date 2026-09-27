@@ -594,3 +594,120 @@ class TestCashExpenseInTransactions:
         assert cash_check["category"] == "Dining Out"
 
 
+class TestStructuredPaymentMethodsAndAnalyticsConsistency:
+    """
+    End-to-end tests for Bank (₹500), UPI (₹300), Cash (₹200) structured manual payment methods,
+    filtering, analytics non-double counting (total = ₹1,000), forecasting, and statement deletion survivability.
+    """
+    def test_bank_upi_cash_pipeline_and_analytics_consistency(self):
+        headers, user_id = get_authenticated_user()
+
+        # 1. Create ₹500 Bank manual expense
+        bank_res = client.post("/cash-expenses", json={
+            "amount": 500.0,
+            "category": "Rent & Utilities",
+            "description": "Office Electric Bill",
+            "expense_date": "2026-09-20",
+            "payment_method": "bank"
+        }, headers=headers)
+        assert bank_res.status_code == 201
+        bank_data = bank_res.json()
+        assert bank_data["payment_method"] == "bank"
+        assert bank_data["description"] == "Office Electric Bill"
+        assert not bank_data["description"].startswith("[Bank]")
+
+        # 2. Create ₹300 UPI manual expense
+        upi_res = client.post("/cash-expenses", json={
+            "amount": 300.0,
+            "category": "Food",
+            "description": "Tea and snacks",
+            "expense_date": "2026-09-21",
+            "payment_method": "upi"
+        }, headers=headers)
+        assert upi_res.status_code == 201
+        upi_data = upi_res.json()
+        assert upi_data["payment_method"] == "upi"
+        assert upi_data["description"] == "Tea and snacks"
+        assert not upi_data["description"].startswith("[UPI]")
+
+        # 3. Create ₹200 Cash manual expense
+        cash_res = client.post("/cash-expenses", json={
+            "amount": 200.0,
+            "category": "Transportation",
+            "description": "Auto fare",
+            "expense_date": "2026-09-22",
+            "payment_method": "cash"
+        }, headers=headers)
+        assert cash_res.status_code == 201
+        cash_data = cash_res.json()
+        assert cash_data["payment_method"] == "cash"
+        assert cash_data["description"] == "Auto fare"
+
+        # 4. Check Transactions with source=all
+        all_txns = client.get("/transactions?source=all", headers=headers).json()
+        assert len(all_txns) == 3
+        total_all = sum(t["amount"] for t in all_txns)
+        assert total_all == 1000.0
+
+        # Check payment_method and source_type on all_txns
+        txn_types = {t["id"]: (t["source_type"], t["payment_method"], t["amount"]) for t in all_txns}
+        assert txn_types[bank_data["id"]] == ("bank", "bank", 500.0)
+        assert txn_types[upi_data["id"]] == ("upi", "upi", 300.0)
+        assert txn_types[cash_data["id"]] == ("cash", "cash", 200.0)
+
+        # 5. Check Transaction Filtering by canonical source
+        bank_txns = client.get("/transactions?source=bank", headers=headers).json()
+        assert len(bank_txns) == 1
+        assert bank_txns[0]["id"] == bank_data["id"]
+        assert bank_txns[0]["amount"] == 500.0
+        assert bank_txns[0]["payment_method"] == "bank"
+
+        upi_txns = client.get("/transactions?source=upi", headers=headers).json()
+        assert len(upi_txns) == 1
+        assert upi_txns[0]["id"] == upi_data["id"]
+        assert upi_txns[0]["amount"] == 300.0
+        assert upi_txns[0]["payment_method"] == "upi"
+
+        cash_txns = client.get("/transactions?source=cash", headers=headers).json()
+        assert len(cash_txns) == 1
+        assert cash_txns[0]["id"] == cash_data["id"]
+        assert cash_txns[0]["amount"] == 200.0
+        assert cash_txns[0]["payment_method"] == "cash"
+
+        # 6. Check Analytics: exactly ₹1,000 total (NO double counting)
+        analytics = client.get("/analytics/summary", headers=headers).json()
+        assert analytics["total_spending"] == 1000.0
+        assert analytics["total_expense"] == 1000.0
+        assert analytics["total_transactions_count"] == 3
+
+        monthly = client.get("/analytics/monthly", headers=headers).json()
+        assert len(monthly) == 1
+        assert monthly[0]["total_expense"] == 1000.0
+        assert monthly[0]["transaction_count"] == 3
+
+        # 7. Check Forecast receives the combined ₹1,000 without double counting
+        forecast = client.get("/forecast", headers=headers).json()
+        assert forecast["status"] in ["ready", "insufficient_data", "low_history"]
+
+        # 8. Check Statement Deletion survivability:
+        # Seed a sample statement, then delete it, ensuring manual Bank, UPI, and Cash remain
+        sample_res = client.post("/statements/seed-sample?bank=HDFC%20Bank", headers=headers)
+        assert sample_res.status_code == 200
+        stmt_id = sample_res.json()["id"]
+
+        # Verify combined analytics increased
+        with_stmt_analytics = client.get("/analytics/summary", headers=headers).json()
+        assert with_stmt_analytics["total_spending"] > 1000.0
+
+        # Delete statement
+        del_res = client.delete(f"/statements/{stmt_id}", headers=headers)
+        assert del_res.status_code == 200
+
+        # Verify manual expenses survive and total returns to exactly 1000.0
+        after_del_txns = client.get("/transactions?source=all", headers=headers).json()
+        assert len(after_del_txns) == 3
+        after_del_analytics = client.get("/analytics/summary", headers=headers).json()
+        assert after_del_analytics["total_spending"] == 1000.0
+
+
+

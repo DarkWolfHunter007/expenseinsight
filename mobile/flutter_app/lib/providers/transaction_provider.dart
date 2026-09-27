@@ -3,7 +3,8 @@ import '../models/transaction_model.dart';
 import '../services/api_service.dart';
 
 class TransactionProvider extends ChangeNotifier {
-  final ApiService _api = ApiService();
+  final ApiService _api;
+  TransactionProvider({ApiService? apiService}) : _api = apiService ?? ApiService();
   List<TransactionModel> _transactions = [];
   List<UncertainReviewModel> _uncertainTransactions = [];
   bool _isLoading = false;

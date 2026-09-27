@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/models/cash_expense_model.dart';
 import 'package:flutter_app/models/analytics_model.dart';
+import 'package:flutter_app/models/transaction_model.dart';
 import 'package:flutter_app/providers/cash_expense_provider.dart';
+import 'package:flutter_app/providers/transaction_provider.dart';
 import 'package:flutter_app/services/api_service.dart';
 import 'package:flutter_app/widgets/add_edit_cash_expense_dialog.dart';
 import 'package:provider/provider.dart';
@@ -99,6 +101,34 @@ class FakeApiService extends Fake implements ApiService {
   Future<bool> deleteCashExpense(String id) async {
     fakeExpenses.removeWhere((e) => e.id == id);
     return true;
+  }
+
+  List<TransactionModel> fakeTransactions = [];
+
+  @override
+  Future<List<TransactionModel>> getTransactions({
+    String? category,
+    String? search,
+    String? source,
+    bool? needsReview,
+    String? sortBy,
+    String? order,
+    int? limit,
+    int? offset,
+  }) async {
+    return fakeTransactions.where((t) {
+      if (source != null && source.isNotEmpty && source != 'all') {
+        if (source == 'bank' && !t.isBank) return false;
+        if (source == 'upi' && !t.isUpi) return false;
+        if (source == 'cash' && !t.isCash) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  @override
+  Future<List<UncertainReviewModel>> getUncertainTransactions() async {
+    return [];
   }
 }
 
@@ -287,6 +317,220 @@ void main() {
       // Dialog should close and item should be added
       expect(find.text('Payment Source *'), findsNothing);
       expect(provider.cashExpenses.any((e) => e.amount == 150.0), isTrue);
+    });
+  });
+
+  group('Structured Payment Methods & Transaction Filter Tests', () {
+    test('CashExpenseModel cleanly parses payment_method and legacy prefixes', () {
+      // 1. Structured payment_method
+      final bankJson = {
+        'id': 'b-1',
+        'user_id': 'u-1',
+        'amount': 500.0,
+        'category': 'Rent',
+        'expense_date': '2026-09-20',
+        'description': 'Office bill',
+        'payment_method': 'bank',
+        'created_at': '2026-09-20T10:00:00Z',
+      };
+      final bankModel = CashExpenseModel.fromJson(bankJson);
+      expect(bankModel.paymentMethod, 'bank');
+      expect(bankModel.description, 'Office bill');
+      expect(bankModel.toJson()['payment_method'], 'bank');
+
+      // 2. Legacy [UPI] prefix backward compatibility
+      final upiLegacy = {
+        'id': 'u-1',
+        'user_id': 'u-1',
+        'amount': 300.0,
+        'category': 'Food',
+        'expense_date': '2026-09-21',
+        'description': '[UPI] Chai snacks',
+        'created_at': '2026-09-21T10:00:00Z',
+      };
+      final upiModel = CashExpenseModel.fromJson(upiLegacy);
+      expect(upiModel.paymentMethod, 'upi');
+      expect(upiModel.description, 'Chai snacks');
+
+      // 3. Cash default
+      final cashJson = {
+        'id': 'c-1',
+        'user_id': 'u-1',
+        'amount': 200.0,
+        'category': 'Transit',
+        'expense_date': '2026-09-22',
+        'description': 'Auto',
+        'created_at': '2026-09-22T10:00:00Z',
+      };
+      final cashModel = CashExpenseModel.fromJson(cashJson);
+      expect(cashModel.paymentMethod, 'cash');
+      expect(cashModel.description, 'Auto');
+    });
+
+    test('TransactionModel correctly determines source classification and flags', () {
+      final bankTx = TransactionModel(
+        id: 't-bank',
+        userId: 'u-1',
+        date: '2026-09-20',
+        rawDescription: 'Office bill',
+        merchant: 'Bank Transfer',
+        normalizedMerchant: 'manual_bank',
+        amount: 500.0,
+        currency: 'INR',
+        transactionType: 'bank_expense',
+        crDr: 'DR',
+        category: 'Rent',
+        categoryConfidence: 1.0,
+        categorySource: 'bank_manual',
+        needsReview: false,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'bank',
+        paymentMethod: 'bank',
+      );
+      expect(bankTx.isBank, isTrue);
+      expect(bankTx.isUpi, isFalse);
+      expect(bankTx.isCash, isFalse);
+      expect(bankTx.isManual, isTrue);
+
+      final upiTx = TransactionModel(
+        id: 't-upi',
+        userId: 'u-1',
+        date: '2026-09-21',
+        rawDescription: 'Chai snacks',
+        merchant: 'UPI Payment',
+        normalizedMerchant: 'manual_upi',
+        amount: 300.0,
+        currency: 'INR',
+        transactionType: 'upi_expense',
+        crDr: 'DR',
+        category: 'Food',
+        categoryConfidence: 1.0,
+        categorySource: 'upi_manual',
+        needsReview: false,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'upi',
+        paymentMethod: 'upi',
+      );
+      expect(upiTx.isUpi, isTrue);
+      expect(upiTx.isBank, isFalse);
+      expect(upiTx.isCash, isFalse);
+      expect(upiTx.isManual, isTrue);
+
+      final cashTx = TransactionModel(
+        id: 't-cash',
+        userId: 'u-1',
+        date: '2026-09-22',
+        rawDescription: 'Auto fare',
+        merchant: 'Cash Payment',
+        normalizedMerchant: 'cash_payment',
+        amount: 200.0,
+        currency: 'INR',
+        transactionType: 'cash_expense',
+        crDr: 'DR',
+        category: 'Transit',
+        categoryConfidence: 1.0,
+        categorySource: 'cash_manual',
+        needsReview: false,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'cash',
+        paymentMethod: 'cash',
+      );
+      expect(cashTx.isCash, isTrue);
+      expect(cashTx.isUpi, isFalse);
+      expect(cashTx.isBank, isFalse);
+      expect(cashTx.isManual, isTrue);
+    });
+
+    test('TransactionProvider correctly filters by source (All, Bank, UPI, Cash)', () async {
+      final fakeApi = FakeApiService();
+      final bankTx = TransactionModel(
+        id: 't-bank',
+        userId: 'u-1',
+        date: '2026-09-20',
+        rawDescription: 'Office bill',
+        merchant: 'Bank Transfer',
+        normalizedMerchant: 'manual_bank',
+        amount: 500.0,
+        currency: 'INR',
+        transactionType: 'bank_expense',
+        crDr: 'DR',
+        category: 'Rent',
+        categoryConfidence: 1.0,
+        categorySource: 'bank_manual',
+        needsReview: false,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'bank',
+        paymentMethod: 'bank',
+      );
+      final upiTx = TransactionModel(
+        id: 't-upi',
+        userId: 'u-1',
+        date: '2026-09-21',
+        rawDescription: 'Chai snacks',
+        merchant: 'UPI Payment',
+        normalizedMerchant: 'manual_upi',
+        amount: 300.0,
+        currency: 'INR',
+        transactionType: 'upi_expense',
+        crDr: 'DR',
+        category: 'Food',
+        categoryConfidence: 1.0,
+        categorySource: 'upi_manual',
+        needsReview: false,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'upi',
+        paymentMethod: 'upi',
+      );
+      final cashTx = TransactionModel(
+        id: 't-cash',
+        userId: 'u-1',
+        date: '2026-09-22',
+        rawDescription: 'Auto fare',
+        merchant: 'Cash Payment',
+        normalizedMerchant: 'cash_payment',
+        amount: 200.0,
+        currency: 'INR',
+        transactionType: 'cash_expense',
+        crDr: 'DR',
+        category: 'Transit',
+        categoryConfidence: 1.0,
+        categorySource: 'cash_manual',
+        needsReview: false,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'cash',
+        paymentMethod: 'cash',
+      );
+      fakeApi.fakeTransactions = [bankTx, upiTx, cashTx];
+
+      final provider = TransactionProvider(apiService: fakeApi);
+      await provider.fetchTransactions();
+
+      expect(provider.transactions.length, 3);
+
+      provider.setSourceFilter('Bank');
+      await Future.delayed(Duration.zero);
+      expect(provider.transactions.length, 1);
+      expect(provider.transactions.first.id, 't-bank');
+
+      provider.setSourceFilter('UPI');
+      await Future.delayed(Duration.zero);
+      expect(provider.transactions.length, 1);
+      expect(provider.transactions.first.id, 't-upi');
+
+      provider.setSourceFilter('Cash');
+      await Future.delayed(Duration.zero);
+      expect(provider.transactions.length, 1);
+      expect(provider.transactions.first.id, 't-cash');
+
+      provider.setSourceFilter('All');
+      await Future.delayed(Duration.zero);
+      expect(provider.transactions.length, 3);
     });
   });
 }
