@@ -10,10 +10,8 @@ import '../providers/cash_expense_provider.dart';
 import '../providers/forecast_provider.dart';
 import '../providers/transaction_provider.dart';
 
-/// Unified Manual Expense Entry Dialog (Bank or Cash)
-/// Allows recording expenses from both Cash and Bank payment sources.
-typedef AddExpenseDialog = AddEditCashExpenseDialog;
-
+/// Unified Manual Expense Entry Dialog (Bank, UPI, or Cash)
+/// Allows recording expenses from Cash, UPI, and Bank payment methods.
 class AddEditCashExpenseDialog extends StatefulWidget {
   final CashExpenseModel? expense;
 
@@ -37,7 +35,7 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
   late TextEditingController _descriptionController;
   late String _selectedCategory;
   late DateTime _selectedDate;
-  String _paymentSource = 'Cash'; // 'Cash' | 'Bank'
+  String _paymentSource = 'Cash'; // 'Cash' | 'UPI' | 'Bank'
   bool _isSubmitting = false;
   String? _errorMessage;
 
