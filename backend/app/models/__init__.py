@@ -6,7 +6,8 @@ from .db_models import (
     Merchant,
     CategoryCorrection,
     Forecast,
-    ModelVersion
+    ModelVersion,
+    CashExpense
 )
 from .schemas import (
     UserCreate,

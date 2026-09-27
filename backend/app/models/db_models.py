@@ -30,6 +30,7 @@ class User(Base):
     transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
     corrections = relationship("CategoryCorrection", back_populates="user", cascade="all, delete-orphan")
     forecasts = relationship("Forecast", back_populates="user", cascade="all, delete-orphan")
+    cash_expenses = relationship("CashExpense", back_populates="user", cascade="all, delete-orphan")
 
 
 class Statement(Base):
@@ -140,3 +141,20 @@ class ModelVersion(Base):
     recall = Column(Float, nullable=True)
     f1_score = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CashExpense(Base):
+    __tablename__ = "cash_expenses"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    
+    amount = Column(Float, nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+    description = Column(String(255), nullable=True)
+    expense_date = Column(String(20), nullable=False, index=True)  # YYYY-MM-DD
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="cash_expenses")
