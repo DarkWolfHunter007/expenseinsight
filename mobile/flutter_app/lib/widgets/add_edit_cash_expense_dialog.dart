@@ -10,6 +10,10 @@ import '../providers/cash_expense_provider.dart';
 import '../providers/forecast_provider.dart';
 import '../providers/transaction_provider.dart';
 
+/// Unified Manual Expense Entry Dialog (Bank or Cash)
+/// Allows recording expenses from both Cash and Bank payment sources.
+typedef AddExpenseDialog = AddEditCashExpenseDialog;
+
 class AddEditCashExpenseDialog extends StatefulWidget {
   final CashExpenseModel? expense;
 
