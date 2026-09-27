@@ -22,20 +22,40 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _desktopSelectedIndex = 0;
   int _mobileSelectedIndex = 0; // 0: Overview, 1: Transactions, 2: Forecast, 3: More
 
-  final List<Widget> _desktopScreens = const [
-    DashboardScreen(),
-    CashExpensesScreen(),
-    UploadScreen(),
-    TransactionsScreen(),
-    ForecastScreen(),
-    ModelBenchmarkScreen(),
+  void _onOpenForecast() {
+    setState(() {
+      _mobileSelectedIndex = 2; // Forecast screen
+      _desktopSelectedIndex = 4; // Desktop forecast tab
+    });
+  }
+
+  void _onOpenTransactions() {
+    setState(() {
+      _mobileSelectedIndex = 1; // Transactions screen
+      _desktopSelectedIndex = 3; // Desktop transactions tab
+    });
+  }
+
+  List<Widget> _getDesktopScreens() => [
+    DashboardScreen(
+      onOpenForecast: _onOpenForecast,
+      onOpenTransactions: _onOpenTransactions,
+    ),
+    const CashExpensesScreen(),
+    const UploadScreen(),
+    const TransactionsScreen(),
+    const ForecastScreen(),
+    const ModelBenchmarkScreen(),
   ];
 
-  final List<Widget> _mobileScreens = const [
-    DashboardScreen(),
-    TransactionsScreen(),
-    ForecastScreen(),
-    MoreScreen(),
+  List<Widget> _getMobileScreens() => [
+    DashboardScreen(
+      onOpenForecast: _onOpenForecast,
+      onOpenTransactions: _onOpenTransactions,
+    ),
+    const TransactionsScreen(),
+    const ForecastScreen(),
+    const MoreScreen(),
   ];
 
   int _mobileIndexToNav(int index) {
@@ -126,7 +146,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   ],
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: _desktopScreens[_desktopSelectedIndex]),
+                Expanded(child: _getDesktopScreens()[_desktopSelectedIndex]),
               ],
             ),
           );
@@ -134,7 +154,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
         // Mobile Bottom Navigation Bar Layout (Rebalanced Hierarchy)
         return Scaffold(
-          body: _mobileScreens[_mobileSelectedIndex],
+          body: _getMobileScreens()[_mobileSelectedIndex],
           bottomNavigationBar: NavigationBar(
             labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
             selectedIndex: _mobileIndexToNav(_mobileSelectedIndex),

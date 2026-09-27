@@ -95,5 +95,41 @@ void main() {
         expect(find.descendant(of: navRail, matching: find.byIcon(Icons.payments_outlined)), findsOneWidget);
       });
     }
+
+    testWidgets('Tapping Forecast hero card on mobile switches to Forecast screen while preserving NavigationBar', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(375, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createNavigationApp());
+      await tester.pump();
+
+      // Home has NavigationBar and Forecast hero card
+      final navBar = find.byType(NavigationBar);
+      expect(navBar, findsOneWidget);
+      expect(find.text('AI FORECAST'), findsOneWidget);
+
+      // Tap View on Forecast Hero Card
+      await tester.tap(find.text('View'));
+      await tester.pump();
+
+      // ForecastScreen is displayed
+      expect(find.text('Expense Forecasting'), findsOneWidget);
+
+      // Crucial requirement: NavigationBar is STILL PRESENT!
+      expect(find.byType(NavigationBar), findsOneWidget);
+
+      // Forecast destination is now selected
+      expect(find.descendant(of: navBar, matching: find.byIcon(Icons.auto_awesome_rounded)), findsOneWidget);
+
+      // Tap Home icon
+      await tester.tap(find.descendant(of: navBar, matching: find.byIcon(Icons.home_outlined)));
+      await tester.pump();
+
+      // Home returns with NavigationBar
+      expect(find.text('AI FORECAST'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.byIcon(Icons.home_rounded)), findsOneWidget);
+    });
   });
 }

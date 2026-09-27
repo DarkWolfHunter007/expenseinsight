@@ -26,7 +26,14 @@ import 'review_uncertain_screen.dart';
 import 'transactions_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onOpenForecast;
+  final VoidCallback? onOpenTransactions;
+
+  const DashboardScreen({
+    super.key,
+    this.onOpenForecast,
+    this.onOpenTransactions,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -496,10 +503,14 @@ class DashboardScreen extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ForecastScreen()),
-          );
+          if (onOpenForecast != null) {
+            onOpenForecast!();
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ForecastScreen()),
+            );
+          }
         },
         borderRadius: BorderRadius.circular(18),
         child: Container(
@@ -765,10 +776,14 @@ class DashboardScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TransactionsScreen()),
-                );
+                if (onOpenTransactions != null) {
+                  onOpenTransactions!();
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TransactionsScreen()),
+                  );
+                }
               },
               child: const Text('View All', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
