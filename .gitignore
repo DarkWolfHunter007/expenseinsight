@@ -11,9 +11,12 @@ venv/
 env/
 
 # SQLite Database & Uploads
+*.db
 backend/uploads/*
 !backend/uploads/.gitkeep
 data/
+ml_training/pdfs/*
+!ml_training/pdfs/.gitkeep
 
 # Cloudflare CLI binaries
 cloudflared

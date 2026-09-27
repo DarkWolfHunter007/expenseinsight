@@ -66,7 +66,8 @@ class PDFExtractor:
         ("Federal Bank", [r"federal\s*bank", r"\bfederal\b"]),
         ("Standard Chartered Bank", [r"standard\s*chartered", r"\bstan\s*chart\b"]),
         ("Citibank", [r"citibank", r"citi\s*bank", r"\bcitibank\b"]),
-        ("HSBC Bank", [r"hsbc\s*bank", r"\bhsbc\b"])
+        ("HSBC Bank", [r"hsbc\s*bank", r"\bhsbc\b"]),
+        ("Google Pay", [r"google\s*pay", r"\bgpay\b", r"payments\s+made\s+by\s+you\s+on\s+the\s+google\s+pay\s+app"])
     ]
 
     def __init__(self):

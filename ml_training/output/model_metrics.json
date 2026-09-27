@@ -1,17 +1,25 @@
 {
   "model_name": "TF-IDF + Calibrated LinearSVC (SVM)",
   "algorithm": "Support Vector Machine (Calibrated LinearSVC) with N-Gram Text Features",
-  "version": "1.0.0",
-  "sample_count": 10000,
-  "train_samples": 7000,
-  "test_samples": 1500,
+  "version": "1.1.0",
+  "sample_count": 13734,
+  "synthetic_samples": 10000,
+  "real_pdf_samples": 3734,
+  "train_samples": 9613,
+  "test_samples": 2061,
   "test_metrics": {
-    "accuracy": 1.0,
-    "accuracy_percentage": "100.00%",
-    "macro_f1": 1.0,
-    "weighted_f1": 1.0,
-    "macro_precision": 1.0,
-    "macro_recall": 1.0
+    "accuracy": 0.9942,
+    "accuracy_percentage": "99.42%",
+    "macro_f1": 0.996,
+    "weighted_f1": 0.9942,
+    "macro_precision": 0.9953,
+    "macro_recall": 0.9968
+  },
+  "real_pdf_test_metrics": {
+    "accuracy": 0.9787,
+    "accuracy_percentage": "97.87%",
+    "macro_f1": 0.8633,
+    "sample_count": 563
   },
   "classes": [
     "Bills",
@@ -33,7 +41,7 @@
   ],
   "confusion_matrix": [
     [
-      133,
+      178,
       0,
       0,
       0,
@@ -47,7 +55,7 @@
       0,
       0,
       0,
-      0,
+      2,
       0
     ],
     [
@@ -71,7 +79,7 @@
     [
       0,
       0,
-      25,
+      27,
       0,
       0,
       0,
@@ -90,7 +98,7 @@
       0,
       0,
       0,
-      90,
+      97,
       0,
       0,
       0,
@@ -109,8 +117,26 @@
       0,
       0,
       0,
-      344,
+      370,
       0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      81,
       0,
       0,
       0,
@@ -128,26 +154,8 @@
       0,
       0,
       0,
-      80,
       0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      209,
+      214,
       0,
       0,
       0,
@@ -166,14 +174,14 @@
       0,
       0,
       0,
-      61,
+      63,
       0,
       0,
       0,
       0,
       0,
       0,
-      0,
+      1,
       0
     ],
     [
@@ -185,7 +193,7 @@
       0,
       0,
       0,
-      29,
+      37,
       0,
       0,
       0,
@@ -281,7 +289,25 @@
       0,
       0,
       192,
+      1,
+      0
+    ],
+    [
       0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      1,
+      470,
       0
     ],
     [
@@ -299,52 +325,8 @@
       0,
       0,
       0,
-      20,
-      0
-    ],
-    [
       0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      162
+      165
     ]
-  ],
-  "comparison_experiment": {
-    "TF-IDF + Calibrated LinearSVC (SVM)": {
-      "accuracy": 1.0,
-      "accuracy_percentage": "100.00%",
-      "macro_f1": 1.0,
-      "weighted_f1": 1.0,
-      "macro_precision": 1.0,
-      "macro_recall": 1.0
-    },
-    "TF-IDF + Logistic Regression": {
-      "accuracy": 1.0,
-      "accuracy_percentage": "100.00%",
-      "macro_f1": 1.0,
-      "weighted_f1": 1.0,
-      "macro_precision": 1.0,
-      "macro_recall": 1.0
-    },
-    "TF-IDF + Random Forest": {
-      "accuracy": 0.7207,
-      "accuracy_percentage": "72.07%",
-      "macro_f1": 0.8389,
-      "weighted_f1": 0.7159,
-      "macro_precision": 0.9642,
-      "macro_recall": 0.7989
-    }
-  }
+  ]
 }

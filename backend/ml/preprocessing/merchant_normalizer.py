@@ -62,6 +62,21 @@ DEFAULT_MERCHANT_KB = {
         "default_category": "Food",
         "type": "expense"
     },
+    "Kichus Fast Food": {
+        "aliases": ["kichus fa", "kichus fast food", "kichus"],
+        "default_category": "Food",
+        "type": "expense"
+    },
+    "Choco Bae": {
+        "aliases": ["choco bae", "chocobae"],
+        "default_category": "Food",
+        "type": "expense"
+    },
+    "Sri Aryaa / Saravana": {
+        "aliases": ["sri aryaa", "aryaas", "arya bhavan", "saravana bhavan", "saravana"],
+        "default_category": "Food",
+        "type": "expense"
+    },
 
     # Groceries
     "Zepto": {
@@ -250,6 +265,21 @@ DEFAULT_MERCHANT_KB = {
         "default_category": "Bills",
         "type": "expense"
     },
+    "BSNL": {
+        "aliases": ["bsnl", "bharat sanchar nigam", "bsnl recharge", "bsnl payment"],
+        "default_category": "Bills",
+        "type": "expense"
+    },
+    "Kerala State Electricity": {
+        "aliases": ["kerala st", "kseb", "kerala state electricity", "kerala electricity board"],
+        "default_category": "Bills",
+        "type": "expense"
+    },
+    "Bank Charges": {
+        "aliases": ["sms charges on actual basis", "sms charges", "bank ledger fee", "minimum balance charge"],
+        "default_category": "Bills",
+        "type": "expense"
+    },
 
     # Entertainment & Media
     "Netflix": {
@@ -273,7 +303,12 @@ DEFAULT_MERCHANT_KB = {
         "type": "expense"
     },
     "BookMyShow": {
-        "aliases": ["bookmyshow", "bigtree entertainment", "bms ticket"],
+        "aliases": ["bookmyshow", "bigtree entertainment", "bms ticket", "bigtre e e", "bigtree"],
+        "default_category": "Entertainment",
+        "type": "expense"
+    },
+    "Sportskeeda": {
+        "aliases": ["sports ke", "sportskeeda", "absolute sports"],
         "default_category": "Entertainment",
         "type": "expense"
     },
@@ -374,6 +409,13 @@ DEFAULT_MERCHANT_KB = {
         "type": "expense"
     },
 
+    # Education
+    "Mar Baselios College": {
+        "aliases": ["mar baselios college of engineer", "mar baselios", "baselios college", "mar baselios college"],
+        "default_category": "Education",
+        "type": "expense"
+    },
+
     # Investments & Trading
     "Zerodha": {
         "aliases": ["zerodha", "zerodha broking", "rainmatter"],
@@ -403,7 +445,7 @@ DEFAULT_MERCHANT_KB = {
         "type": "income"
     },
     "Interest Earned": {
-        "aliases": ["interest credit", "sb interest", "savings interest", "fd interest", "interest paid"],
+        "aliases": ["interest credit", "sb interest", "savings interest", "fd interest", "interest paid", "sbint", "sbint for the period"],
         "default_category": "Income",
         "type": "income"
     },

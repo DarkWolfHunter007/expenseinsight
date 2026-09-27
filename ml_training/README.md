@@ -59,7 +59,7 @@ ml_training/
 │   └── metrics.py               # Confusion matrix, macro/weighted F1, accuracy, MAPE
 │
 └── scripts/
-    ├── train_classifier.py      # Detailed training & ablation pipeline (SVM vs Logistic vs RF)
+    ├── train_classifier.py      # Production training runner
     ├── evaluate_classifier.py   # Edge case test evaluation
     ├── evaluate_forecaster.py   # ARIMA forecasting evaluation & backtesting
     └── generate_sample_statements.py # PyMuPDF / ReportLab bank statement generator
@@ -74,7 +74,7 @@ ml_training/
 pip install -r requirements.txt
 ```
 
-### Step 2: Run Training (Default: 10,000 Synthetic Transactions)
+### Step 2: Run Training (Default: 10,000 Synthetic + Real Statement PDFs)
 ```bash
 python train.py
 ```
@@ -94,7 +94,7 @@ python train.py --dataset path/to/real_transactions.csv
 
 After training completes, it outputs:
 1. `output/expense_classifier.joblib`: The trained SVM model weights.
-2. `output/model_metrics.json`: Accuracy, F1 score, confusion matrix, and candidate benchmark comparisons.
+2. `output/model_metrics.json`: Accuracy, F1 score, and confusion matrix.
 
 ---
 

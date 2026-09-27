@@ -379,22 +379,77 @@ class TransactionParser:
             return "transfer"
         return default_type
 
+    def parse_from_gpay(self, full_text: str) -> List[Dict[str, Any]]:
+        """Parses Google Pay (GPay) PDF statement format."""
+        pattern = re.compile(
+            r'(\d{1,2}\s+[A-Za-z]{3},\s+\d{4})\s*\n'
+            r'(\d{1,2}:\d{2}\s+(?:AM|PM))\s*\n'
+            r'(Paid to|Received from)\s+([^\n]+)\s*\n'
+            r'(?:UPI Transaction ID:\s*([^\n]+)\s*\n)?'
+            r'(?:(?:Paid by|Paid to)\s+([^\n]+)\s*\n)?'
+            r'[₹Rs\.]*\s*([\d,]+(?:\.\d{2})?)',
+            re.IGNORECASE
+        )
+        matches = pattern.findall(full_text)
+        transactions = []
+        seen_keys: Set[str] = set()
+
+        for dt_str, tm_str, direction, counterparty, txn_id, bank_info, amt_str in matches:
+            amt = self._parse_amount(amt_str)
+            if not amt or amt <= 0:
+                continue
+            norm_date = self._normalize_date(dt_str.replace(',', ''))
+            if not norm_date:
+                continue
+
+            cr_dr = "CR" if "Received" in direction else "DR"
+            raw_desc = f"{direction.strip()} {counterparty.strip()} via GPay"
+            txn_type = self._determine_txn_type(raw_desc, "income" if cr_dr == "CR" else "expense")
+            ref_num = txn_id.strip() if txn_id else None
+
+            dup_key = f"{norm_date}_{amt:.2f}_{cr_dr}_{raw_desc[:30]}"
+            is_duplicate = dup_key in seen_keys
+            seen_keys.add(dup_key)
+
+            transactions.append({
+                "date": norm_date,
+                "raw_description": raw_desc,
+                "amount": round(amt, 2),
+                "currency": "INR",
+                "transaction_type": txn_type,
+                "cr_dr": cr_dr,
+                "balance": None,
+                "reference_number": ref_num,
+                "is_duplicate": is_duplicate
+            })
+        return transactions
+
     def parse(self, extraction_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Orchestrates multi-strategy transaction extraction:
-        1. Structured Table Parsing (grid-based PDFs)
-        2. Date-Block Multi-Line Parsing (borderless / e-passbook / multi-page PDFs)
-        3. Line-by-Line Regex Parsing (simple statements)
+        1. Google Pay Parser (if GPay statement detected)
+        2. Structured Table Parsing (grid-based PDFs)
+        3. Date-Block Multi-Line Parsing (borderless / e-passbook / multi-page PDFs)
+        4. Line-by-Line Regex Parsing (simple statements)
         Selects the most comprehensive and accurate transaction list.
         """
+        full_text = extraction_result.get("full_text", "")
+        detected_bank = extraction_result.get("detected_bank", "")
+
+        # Check for Google Pay
+        if detected_bank == "Google Pay" or "google pay" in full_text.lower():
+            gpay_txns = self.parse_from_gpay(full_text)
+            if len(gpay_txns) >= 1:
+                return gpay_txns
+
         table_txns = self.parse_from_tables(extraction_result.get("raw_tables", []))
         if len(table_txns) >= 5:
             return table_txns
 
-        full_text = extraction_result.get("full_text", "")
         block_txns = self.parse_from_blocks(full_text)
         line_txns = self.parse_from_text_lines(full_text)
+        gpay_txns = self.parse_from_gpay(full_text)
 
-        candidates = [table_txns, block_txns, line_txns]
+        candidates = [table_txns, block_txns, line_txns, gpay_txns]
         best_candidate = max(candidates, key=lambda txns: len(txns))
         return best_candidate
