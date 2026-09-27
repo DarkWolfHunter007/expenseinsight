@@ -210,12 +210,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               ],
                             ),
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: transactions.length,
-                            itemBuilder: (ctx, i) {
-                              return TransactionTile(transaction: transactions[i]);
+                        : RefreshIndicator(
+                            color: const Color(0xFF10B981),
+                            onRefresh: () async {
+                              await provider.fetchTransactions();
                             },
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: transactions.length,
+                              itemBuilder: (ctx, i) {
+                                return TransactionTile(transaction: transactions[i]);
+                              },
+                            ),
                           ),
               ),
             ],
