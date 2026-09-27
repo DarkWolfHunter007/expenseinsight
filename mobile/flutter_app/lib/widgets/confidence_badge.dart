@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class ConfidenceBadge extends StatelessWidget {
   final double confidence;
   final bool needsReview;
+  final bool isCash;
 
   const ConfidenceBadge({
     super.key,
     required this.confidence,
     this.needsReview = false,
+    this.isCash = false,
   });
 
   @override
@@ -17,7 +19,12 @@ class ConfidenceBadge extends StatelessWidget {
     String label;
     IconData icon;
 
-    if (needsReview || confidence < 0.60) {
+    if (isCash) {
+      color = const Color(0xFF059669);
+      bgColor = const Color(0xFFD1FAE5);
+      label = 'Cash';
+      icon = Icons.payments_rounded;
+    } else if (needsReview || confidence < 0.60) {
       color = const Color(0xFFEF4444);
       bgColor = const Color(0xFFFEE2E2);
       label = '${(confidence * 100).toStringAsFixed(0)}% Review';

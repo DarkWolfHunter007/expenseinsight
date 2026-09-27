@@ -216,10 +216,37 @@ class TransactionTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (transaction.isCash) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.payments_rounded, size: 10, color: Color(0xFF10B981)),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Cash',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 ConfidenceBadge(
                   confidence: transaction.categoryConfidence,
                   needsReview: transaction.needsReview,
+                  isCash: transaction.isCash,
                 ),
               ],
             ),
@@ -234,14 +261,22 @@ class TransactionTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _detailRow('Raw Statement Text:', transaction.rawDescription, isDark),
-                  const SizedBox(height: 6),
-                  _detailRow('Normalized Merchant:', transaction.normalizedMerchant, isDark),
-                  const SizedBox(height: 6),
-                  _detailRow('Classification Source:', transaction.categorySource.toUpperCase(), isDark),
-                  if (transaction.balance != null) ...[
+                  if (transaction.isCash) ...[
+                    _detailRow('Payment Source:', 'Cash / Liquid Money', isDark),
                     const SizedBox(height: 6),
-                    _detailRow('Account Balance:', currencyFormat.format(transaction.balance!), isDark),
+                    _detailRow('Description / Note:', transaction.rawDescription, isDark),
+                    const SizedBox(height: 6),
+                    _detailRow('Entry Mode:', 'Manually Recorded', isDark),
+                  ] else ...[
+                    _detailRow('Raw Statement Text:', transaction.rawDescription, isDark),
+                    const SizedBox(height: 6),
+                    _detailRow('Normalized Merchant:', transaction.normalizedMerchant, isDark),
+                    const SizedBox(height: 6),
+                    _detailRow('Classification Source:', transaction.categorySource.toUpperCase(), isDark),
+                    if (transaction.balance != null) ...[
+                      const SizedBox(height: 6),
+                      _detailRow('Account Balance:', currencyFormat.format(transaction.balance!), isDark),
+                    ],
                   ],
                   const SizedBox(height: 12),
                   SizedBox(

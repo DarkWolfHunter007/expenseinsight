@@ -8,6 +8,7 @@ import '../models/cash_expense_model.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/cash_expense_provider.dart';
 import '../providers/forecast_provider.dart';
+import '../providers/transaction_provider.dart';
 import '../widgets/add_edit_cash_expense_dialog.dart';
 
 class CashExpensesScreen extends StatefulWidget {
@@ -60,11 +61,16 @@ class _CashExpensesScreenState extends State<CashExpensesScreen> {
       final cashProv = Provider.of<CashExpenseProvider>(context, listen: false);
       final analyticsProv = Provider.of<AnalyticsProvider>(context, listen: false);
       final forecastProv = Provider.of<ForecastProvider>(context, listen: false);
+      TransactionProvider? txProv;
+      try {
+        txProv = Provider.of<TransactionProvider>(context, listen: false);
+      } catch (_) {}
 
       final success = await cashProv.deleteCashExpense(expense.id);
       if (success) {
         analyticsProv.fetchAnalytics();
         forecastProv.fetchForecast();
+        txProv?.fetchTransactions();
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

@@ -19,6 +19,7 @@ class TransactionModel {
   final bool needsReview;
   final bool isDuplicate;
   final DateTime createdAt;
+  final String sourceType; // 'bank' or 'cash'
 
   TransactionModel({
     required this.id,
@@ -41,13 +42,16 @@ class TransactionModel {
     required this.needsReview,
     required this.isDuplicate,
     required this.createdAt,
+    this.sourceType = 'bank',
   });
 
-  bool get isExpense => crDr == 'DR' && transactionType != 'transfer';
+  bool get isCash => sourceType == 'cash' || transactionType == 'cash_expense';
+  bool get isExpense => (crDr == 'DR' && transactionType != 'transfer') || isCash;
   bool get isIncome => crDr == 'CR' || transactionType == 'income';
   bool get isTransfer => transactionType == 'transfer' || transactionType == 'cash_withdrawal';
 
   String get confidenceLevel {
+    if (isCash) return 'Cash';
     if (categoryConfidence >= 0.85) return 'High';
     if (categoryConfidence >= 0.60) return 'Medium';
     return 'Low';
@@ -77,6 +81,7 @@ class TransactionModel {
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at']) ?? DateTime.now()
           : DateTime.now(),
+      sourceType: json['source_type'] ?? (json['transaction_type'] == 'cash_expense' ? 'cash' : 'bank'),
     );
   }
 }

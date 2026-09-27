@@ -76,6 +76,7 @@ class TransactionResponse(BaseModel):
     needs_review: bool
     is_duplicate: bool
     created_at: datetime
+    source_type: Optional[str] = "bank"
 
     model_config = ConfigDict(from_attributes=True)
 

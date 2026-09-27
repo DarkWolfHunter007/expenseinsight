@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ...database.session import get_db
-from ...models.db_models import CategoryCorrection, Transaction, User
+from ...models.db_models import CategoryCorrection, Transaction, User, CashExpense
 from ...models.schemas import TransactionResponse, TransactionUpdateCategory, UncertainTransactionReview
 from ..deps import get_current_user
 
@@ -16,6 +16,7 @@ def get_transactions(
     statement_id: Optional[str] = None,
     needs_review: Optional[bool] = None,
     transaction_type: Optional[str] = None,
+    source: Optional[str] = Query("all", enum=["all", "bank", "cash"]),
     sort_by: str = Query("date", enum=["date", "amount", "merchant"]),
     order: str = Query("desc", enum=["asc", "desc"]),
     limit: int = Query(500, le=1000),
@@ -25,38 +26,87 @@ def get_transactions(
 ):
     """
     Retrieves user transactions with filtering, search, sorting, and pagination (PRD Section 33).
+    Reflects both bank transactions and manually entered cash expenses.
     """
-    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    bank_items: List[TransactionResponse] = []
+    if source in ["all", "bank"] and transaction_type != "cash_expense":
+        query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
-    if category and category.lower() != "all":
-        query = query.filter(Transaction.category.ilike(category))
+        if category and category.lower() != "all":
+            query = query.filter(Transaction.category.ilike(category))
 
-    if search:
-        search_pattern = f"%{search}%"
-        query = query.filter(
-            (Transaction.raw_description.ilike(search_pattern)) |
-            (Transaction.merchant.ilike(search_pattern)) |
-            (Transaction.normalized_merchant.ilike(search_pattern))
-        )
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                (Transaction.raw_description.ilike(search_pattern)) |
+                (Transaction.merchant.ilike(search_pattern)) |
+                (Transaction.normalized_merchant.ilike(search_pattern))
+            )
 
-    if statement_id:
-        query = query.filter(Transaction.statement_id == statement_id)
+        if statement_id:
+            query = query.filter(Transaction.statement_id == statement_id)
 
-    if needs_review is not None:
-        query = query.filter(Transaction.needs_review == needs_review)
+        if needs_review is not None:
+            query = query.filter(Transaction.needs_review == needs_review)
 
-    if transaction_type:
-        query = query.filter(Transaction.transaction_type == transaction_type)
+        if transaction_type:
+            query = query.filter(Transaction.transaction_type == transaction_type)
+
+        bank_items = [TransactionResponse.model_validate(t) for t in query.all()]
+
+    cash_items: List[TransactionResponse] = []
+    if source in ["all", "cash"] and statement_id is None and needs_review is not True and (transaction_type is None or transaction_type in ["expense", "cash_expense"]):
+        cash_query = db.query(CashExpense).filter(CashExpense.user_id == current_user.id)
+
+        if category and category.lower() != "all":
+            cash_query = cash_query.filter(CashExpense.category.ilike(category))
+
+        if search:
+            search_pattern = f"%{search}%"
+            cash_query = cash_query.filter(
+                (CashExpense.description.ilike(search_pattern)) |
+                (CashExpense.category.ilike(search_pattern))
+            )
+
+        for c in cash_query.all():
+            cash_items.append(
+                TransactionResponse(
+                    id=c.id,
+                    user_id=c.user_id,
+                    statement_id=None,
+                    date=c.expense_date,
+                    raw_description=c.description or f"Cash Expense ({c.category})",
+                    clean_description=c.description,
+                    merchant="Cash Payment",
+                    normalized_merchant="cash_payment",
+                    amount=c.amount,
+                    currency="INR",
+                    transaction_type="cash_expense",
+                    cr_dr="DR",
+                    balance=None,
+                    reference_number=None,
+                    category=c.category,
+                    category_confidence=1.0,
+                    category_source="cash_manual",
+                    needs_review=False,
+                    is_duplicate=False,
+                    created_at=c.created_at,
+                    source_type="cash"
+                )
+            )
+
+    combined = bank_items + cash_items
 
     # Sorting
+    reverse = (order == "desc")
     if sort_by == "amount":
-        query = query.order_by(Transaction.amount.desc() if order == "desc" else Transaction.amount.asc())
+        combined.sort(key=lambda x: x.amount, reverse=reverse)
     elif sort_by == "merchant":
-        query = query.order_by(Transaction.merchant.desc() if order == "desc" else Transaction.merchant.asc())
-    else: # date
-        query = query.order_by(Transaction.date.desc() if order == "desc" else Transaction.date.asc())
+        combined.sort(key=lambda x: (x.merchant or "").lower(), reverse=reverse)
+    else:  # date
+        combined.sort(key=lambda x: (x.date, x.created_at.isoformat() if x.created_at else ""), reverse=reverse)
 
-    return query.offset(offset).limit(limit).all()
+    return combined[offset : offset + limit]
 
 
 @router.get("/uncertain", response_model=List[UncertainTransactionReview])
@@ -102,14 +152,44 @@ def get_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retrieves a single transaction by ID."""
+    """Retrieves a single transaction by ID (Bank or Cash)."""
     txn = db.query(Transaction).filter(
         Transaction.id == transaction_id,
         Transaction.user_id == current_user.id
     ).first()
-    if not txn:
-        raise HTTPException(status_code=404, detail="Transaction not found.")
-    return txn
+    if txn:
+        return txn
+
+    cash = db.query(CashExpense).filter(
+        CashExpense.id == transaction_id,
+        CashExpense.user_id == current_user.id
+    ).first()
+    if cash:
+        return TransactionResponse(
+            id=cash.id,
+            user_id=cash.user_id,
+            statement_id=None,
+            date=cash.expense_date,
+            raw_description=cash.description or f"Cash Expense ({cash.category})",
+            clean_description=cash.description,
+            merchant="Cash Payment",
+            normalized_merchant="cash_payment",
+            amount=cash.amount,
+            currency="INR",
+            transaction_type="cash_expense",
+            cr_dr="DR",
+            balance=None,
+            reference_number=None,
+            category=cash.category,
+            category_confidence=1.0,
+            category_source="cash_manual",
+            needs_review=False,
+            is_duplicate=False,
+            created_at=cash.created_at,
+            source_type="cash"
+        )
+
+    raise HTTPException(status_code=404, detail="Transaction not found.")
 
 
 @router.patch("/{transaction_id}/category", response_model=TransactionResponse)
@@ -121,12 +201,44 @@ def update_transaction_category(
 ):
     """
     Updates category for a transaction and saves user correction feedback (PRD Section 23).
+    Supports updating both bank transactions and cash expenses.
     """
     txn = db.query(Transaction).filter(
         Transaction.id == transaction_id,
         Transaction.user_id == current_user.id
     ).first()
     if not txn:
+        cash = db.query(CashExpense).filter(
+            CashExpense.id == transaction_id,
+            CashExpense.user_id == current_user.id
+        ).first()
+        if cash:
+            cash.category = payload.category.strip()
+            db.commit()
+            db.refresh(cash)
+            return TransactionResponse(
+                id=cash.id,
+                user_id=cash.user_id,
+                statement_id=None,
+                date=cash.expense_date,
+                raw_description=cash.description or f"Cash Expense ({cash.category})",
+                clean_description=cash.description,
+                merchant="Cash Payment",
+                normalized_merchant="cash_payment",
+                amount=cash.amount,
+                currency="INR",
+                transaction_type="cash_expense",
+                cr_dr="DR",
+                balance=None,
+                reference_number=None,
+                category=cash.category,
+                category_confidence=1.0,
+                category_source="cash_manual",
+                needs_review=False,
+                is_duplicate=False,
+                created_at=cash.created_at,
+                source_type="cash"
+            )
         raise HTTPException(status_code=404, detail="Transaction not found.")
 
     old_cat = txn.category

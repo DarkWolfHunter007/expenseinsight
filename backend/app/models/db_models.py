@@ -86,6 +86,10 @@ class Transaction(Base):
     statement = relationship("Statement", back_populates="transactions")
     corrections = relationship("CategoryCorrection", back_populates="transaction", cascade="all, delete-orphan")
 
+    @property
+    def source_type(self) -> str:
+        return "bank"
+
 
 class Merchant(Base):
     __tablename__ = "merchants"
@@ -158,3 +162,7 @@ class CashExpense(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="cash_expenses")
+
+    @property
+    def source_type(self) -> str:
+        return "cash"

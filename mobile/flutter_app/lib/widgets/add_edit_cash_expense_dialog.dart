@@ -8,6 +8,7 @@ import '../models/cash_expense_model.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/cash_expense_provider.dart';
 import '../providers/forecast_provider.dart';
+import '../providers/transaction_provider.dart';
 
 class AddEditCashExpenseDialog extends StatefulWidget {
   final CashExpenseModel? expense;
@@ -133,6 +134,9 @@ class _AddEditCashExpenseDialogState extends State<AddEditCashExpenseDialog> {
       } catch (_) {}
       try {
         Provider.of<ForecastProvider>(context, listen: false).fetchForecast();
+      } catch (_) {}
+      try {
+        Provider.of<TransactionProvider>(context, listen: false).fetchTransactions();
       } catch (_) {}
       Navigator.of(context).pop(true);
     } else {

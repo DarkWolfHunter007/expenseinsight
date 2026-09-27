@@ -493,3 +493,104 @@ class TestFullScenarioSection43:
         # All 5 cash expenses are intact in DB
         cash_list = client.get("/cash-expenses", headers=headers).json()
         assert len(cash_list) == 5
+
+
+class TestCashExpenseInTransactions:
+    def test_cash_expenses_reflected_in_transactions(self):
+        headers, user_id = get_authenticated_user()
+        db = SessionLocal()
+
+        # 1. Create a bank statement with a transaction via DB
+        try:
+            stmt = Statement(
+                user_id=user_id,
+                file_name="bank_statement.pdf",
+                bank_name="Test Bank",
+                statement_start="2026-09-01",
+                statement_end="2026-09-30",
+                processing_status="completed",
+                total_transactions=1,
+            )
+            db.add(stmt)
+            db.commit()
+            db.refresh(stmt)
+
+            tx = Transaction(
+                statement_id=stmt.id,
+                user_id=user_id,
+                date="2026-09-15",
+                raw_description="Supermarket Groceries",
+                amount=1200.0,
+                cr_dr="DR",
+                category="Groceries",
+                balance=10000.0,
+            )
+            db.add(tx)
+            db.commit()
+        finally:
+            db.close()
+
+        # 2. Create a cash expense
+        cash_res = client.post(
+            "/cash-expenses",
+            json={
+                "amount": 350.0,
+                "category": "Food",
+                "description": "Street Food Snacks",
+                "expense_date": "2026-09-20",
+            },
+            headers=headers,
+        )
+        assert cash_res.status_code == 201
+        cash_id = cash_res.json()["id"]
+
+        # 3. Default GET /transactions should include both (sorted by date desc: 2026-09-20 first, then 2026-09-15)
+        tx_res = client.get("/transactions", headers=headers)
+        assert tx_res.status_code == 200
+        txs = tx_res.json()
+        assert len(txs) == 2
+
+        # Cash expense is first (newer date: 2026-09-20)
+        assert txs[0]["id"] == cash_id
+        assert txs[0]["source_type"] == "cash"
+        assert txs[0]["transaction_type"] == "cash_expense"
+        assert txs[0]["amount"] == 350.0
+        assert txs[0]["category"] == "Food"
+        assert txs[0]["raw_description"] == "Street Food Snacks"
+        assert txs[0]["clean_description"] == "Street Food Snacks"
+
+        # Bank transaction is second (2026-09-15)
+        assert txs[1]["source_type"] == "bank"
+        assert txs[1]["amount"] == 1200.0
+
+        # 4. Filter source=bank
+        bank_only = client.get("/transactions?source=bank", headers=headers).json()
+        assert len(bank_only) == 1
+        assert bank_only[0]["source_type"] == "bank"
+
+        # 5. Filter source=cash
+        cash_only = client.get("/transactions?source=cash", headers=headers).json()
+        assert len(cash_only) == 1
+        assert cash_only[0]["id"] == cash_id
+        assert cash_only[0]["source_type"] == "cash"
+
+        # 6. GET single transaction by cash expense ID
+        single_tx = client.get(f"/transactions/{cash_id}", headers=headers)
+        assert single_tx.status_code == 200
+        assert single_tx.json()["id"] == cash_id
+        assert single_tx.json()["source_type"] == "cash"
+
+        # 7. PATCH transaction category on cash expense ID
+        patch_res = client.patch(
+            f"/transactions/{cash_id}/category",
+            json={"category": "Dining Out"},
+            headers=headers,
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["category"] == "Dining Out"
+
+        # Verify underlying cash expense was updated
+        cash_check = client.get(f"/cash-expenses/{cash_id}", headers=headers).json()
+        assert cash_check["category"] == "Dining Out"
+
+
