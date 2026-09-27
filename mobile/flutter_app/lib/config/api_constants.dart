@@ -56,6 +56,9 @@ class ApiConstants {
   static const String uncertainTransactions = '/transactions/uncertain';
   static const String updateCategory = '/transactions';
 
+  // Cash Expenses endpoints
+  static const String cashExpenses = '/cash-expenses';
+
   // Analytics endpoints
   static const String analyticsSummary = '/analytics/summary';
   static const String monthlySpending = '/analytics/monthly';

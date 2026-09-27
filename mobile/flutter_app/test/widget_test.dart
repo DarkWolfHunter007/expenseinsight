@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_app/main.dart';
 import 'package:flutter_app/providers/analytics_provider.dart';
 import 'package:flutter_app/providers/auth_provider.dart';
+import 'package:flutter_app/providers/cash_expense_provider.dart';
 import 'package:flutter_app/providers/forecast_provider.dart';
 import 'package:flutter_app/providers/model_provider.dart';
 import 'package:flutter_app/providers/statement_provider.dart';
@@ -18,6 +19,7 @@ void main() {
           ChangeNotifierProvider.value(value: authProvider),
           ChangeNotifierProvider(create: (_) => StatementProvider()),
           ChangeNotifierProvider(create: (_) => TransactionProvider()),
+          ChangeNotifierProvider(create: (_) => CashExpenseProvider()),
           ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
           ChangeNotifierProvider(create: (_) => ForecastProvider()),
           ChangeNotifierProvider(create: (_) => ModelProvider()),

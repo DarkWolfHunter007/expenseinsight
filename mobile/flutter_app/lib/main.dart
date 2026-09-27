@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'providers/analytics_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/cash_expense_provider.dart';
 import 'providers/forecast_provider.dart';
 import 'providers/model_provider.dart';
 import 'providers/statement_provider.dart';
@@ -22,6 +23,7 @@ void main() async {
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => StatementProvider()),
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
+        ChangeNotifierProvider(create: (_) => CashExpenseProvider()),
         ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => ForecastProvider()),
         ChangeNotifierProvider(create: (_) => ModelProvider()),

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_constants.dart';
 import '../models/analytics_model.dart';
+import '../models/cash_expense_model.dart';
 import '../models/forecast_model.dart';
 import '../models/model_metrics_model.dart';
 import '../models/statement_model.dart';
@@ -262,6 +263,98 @@ class ApiService {
     } catch (e) {
       debugPrint('API Error (updateTransactionCategory): $e');
       return true; // Optimistic fallback
+    }
+  }
+
+  // ----------------- Cash Expenses -----------------
+
+  Future<List<CashExpenseModel>> getCashExpenses({
+    String? startDate,
+    String? endDate,
+    String? category,
+    String? search,
+    String sortBy = 'expense_date',
+    String order = 'desc',
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'sort_by': sortBy,
+        'order': order,
+      };
+      if (startDate != null && startDate.isNotEmpty) queryParams['start_date'] = startDate;
+      if (endDate != null && endDate.isNotEmpty) queryParams['end_date'] = endDate;
+      if (category != null && category != 'All') queryParams['category'] = category;
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.cashExpenses}').replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final List<dynamic> list = json.decode(response.body);
+        return list.map((e) => CashExpenseModel.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('API Error (getCashExpenses): $e');
+    }
+    return MockDataService.mockCashExpenses;
+  }
+
+  Future<CashExpenseModel?> createCashExpense({
+    required double amount,
+    required String category,
+    required String expenseDate,
+    String? description,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.cashExpenses}');
+      final body = json.encode({
+        'amount': amount,
+        'category': category,
+        'expense_date': expenseDate,
+        if (description != null && description.isNotEmpty) 'description': description,
+      });
+      final response = await http.post(url, headers: _headers, body: body).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return CashExpenseModel.fromJson(json.decode(response.body));
+      }
+    } catch (e) {
+      debugPrint('API Error (createCashExpense): $e');
+    }
+    return null;
+  }
+
+  Future<CashExpenseModel?> updateCashExpense({
+    required String id,
+    double? amount,
+    String? category,
+    String? expenseDate,
+    String? description,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.cashExpenses}/$id');
+      final map = <String, dynamic>{};
+      if (amount != null) map['amount'] = amount;
+      if (category != null) map['category'] = category;
+      if (expenseDate != null) map['expense_date'] = expenseDate;
+      if (description != null) map['description'] = description;
+
+      final response = await http.put(url, headers: _headers, body: json.encode(map)).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        return CashExpenseModel.fromJson(json.decode(response.body));
+      }
+    } catch (e) {
+      debugPrint('API Error (updateCashExpense): $e');
+    }
+    return null;
+  }
+
+  Future<bool> deleteCashExpense(String id) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.cashExpenses}/$id');
+      final response = await http.delete(url, headers: _headers).timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('API Error (deleteCashExpense): $e');
+      return false;
     }
   }
 

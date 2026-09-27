@@ -1,4 +1,5 @@
 import '../models/analytics_model.dart';
+import '../models/cash_expense_model.dart';
 import '../models/forecast_model.dart';
 import '../models/model_metrics_model.dart';
 import '../models/statement_model.dart';
@@ -399,4 +400,34 @@ class MockDataService {
           },
         },
       );
+
+  static List<CashExpenseModel> get mockCashExpenses => [
+        CashExpenseModel(
+          id: 'cash-01',
+          userId: 'demo-user-1234',
+          amount: 250.0,
+          category: 'Food',
+          expenseDate: '2026-06-27',
+          description: 'Lunch with colleagues',
+          createdAt: DateTime.now().subtract(const Duration(days: 3)),
+        ),
+        CashExpenseModel(
+          id: 'cash-02',
+          userId: 'demo-user-1234',
+          amount: 120.0,
+          category: 'Transport',
+          expenseDate: '2026-06-26',
+          description: 'Auto-rickshaw fare',
+          createdAt: DateTime.now().subtract(const Duration(days: 4)),
+        ),
+        CashExpenseModel(
+          id: 'cash-03',
+          userId: 'demo-user-1234',
+          amount: 500.0,
+          category: 'Shopping',
+          expenseDate: '2026-06-25',
+          description: 'Local market groceries',
+          createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        ),
+      ];
 }

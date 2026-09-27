@@ -3,12 +3,16 @@ class CategorySpendingItem {
   final double amount;
   final double percentage;
   final int transactionCount;
+  final double bankAmount;
+  final double cashAmount;
 
   CategorySpendingItem({
     required this.category,
     required this.amount,
     required this.percentage,
     required this.transactionCount,
+    this.bankAmount = 0.0,
+    this.cashAmount = 0.0,
   });
 
   factory CategorySpendingItem.fromJson(Map<String, dynamic> json) {
@@ -17,6 +21,8 @@ class CategorySpendingItem {
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       percentage: (json['percentage'] as num?)?.toDouble() ?? 0.0,
       transactionCount: json['transaction_count'] ?? 0,
+      bankAmount: (json['bank_amount'] as num?)?.toDouble() ?? 0.0,
+      cashAmount: (json['cash_amount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -28,6 +34,8 @@ class MonthlySpendingItem {
   final double totalIncome;
   final double netSavings;
   final int transactionCount;
+  final double bankExpense;
+  final double cashExpense;
 
   MonthlySpendingItem({
     required this.month,
@@ -36,6 +44,8 @@ class MonthlySpendingItem {
     required this.totalIncome,
     required this.netSavings,
     required this.transactionCount,
+    this.bankExpense = 0.0,
+    this.cashExpense = 0.0,
   });
 
   factory MonthlySpendingItem.fromJson(Map<String, dynamic> json) {
@@ -46,6 +56,8 @@ class MonthlySpendingItem {
       totalIncome: (json['total_income'] as num?)?.toDouble() ?? 0.0,
       netSavings: (json['net_savings'] as num?)?.toDouble() ?? 0.0,
       transactionCount: json['transaction_count'] ?? 0,
+      bankExpense: (json['bank_expense'] as num?)?.toDouble() ?? 0.0,
+      cashExpense: (json['cash_expense'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -123,6 +135,9 @@ class AnalyticsSummaryModel {
   final List<CategorySpendingItem> categoriesBreakdown;
   final List<MerchantSpendingItem> topMerchants;
   final List<RecurringExpenseItem> recurringExpenses;
+  final double bankSpending;
+  final double cashSpending;
+  final double totalSpending;
 
   AnalyticsSummaryModel({
     required this.totalExpense,
@@ -139,11 +154,15 @@ class AnalyticsSummaryModel {
     required this.categoriesBreakdown,
     required this.topMerchants,
     required this.recurringExpenses,
+    this.bankSpending = 0.0,
+    this.cashSpending = 0.0,
+    this.totalSpending = 0.0,
   });
 
   factory AnalyticsSummaryModel.fromJson(Map<String, dynamic> json) {
+    final exp = (json['total_expense'] as num?)?.toDouble() ?? 0.0;
     return AnalyticsSummaryModel(
-      totalExpense: (json['total_expense'] as num?)?.toDouble() ?? 0.0,
+      totalExpense: exp,
       totalIncome: (json['total_income'] as num?)?.toDouble() ?? 0.0,
       totalTransfers: (json['total_transfers'] as num?)?.toDouble() ?? 0.0,
       netSavings: (json['net_savings'] as num?)?.toDouble() ?? 0.0,
@@ -166,6 +185,9 @@ class AnalyticsSummaryModel {
               ?.map((e) => RecurringExpenseItem.fromJson(e))
               .toList() ??
           [],
+      bankSpending: (json['bank_spending'] as num?)?.toDouble() ?? 0.0,
+      cashSpending: (json['cash_spending'] as num?)?.toDouble() ?? 0.0,
+      totalSpending: (json['total_spending'] as num?)?.toDouble() ?? exp,
     );
   }
 }
