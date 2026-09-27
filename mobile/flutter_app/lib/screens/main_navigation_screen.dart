@@ -111,6 +111,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         return Scaffold(
           body: _screens[_selectedIndex],
           bottomNavigationBar: NavigationBar(
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
             selectedIndex: _selectedIndex,
             onDestinationSelected: (int index) {
               setState(() {
