@@ -32,16 +32,6 @@ void main() {
 
     for (final width in mobileWidths) {
       testWidgets('Mobile at ${width}px is icon-only and hides all labels', (WidgetTester tester) async {
-        // Ignore unrelated dashboard body flex overflow on small screen test viewports
-        final originalOnError = FlutterError.onError;
-        FlutterError.onError = (FlutterErrorDetails details) {
-          if (details.exceptionAsString().contains('A RenderFlex overflowed')) {
-            return;
-          }
-          originalOnError?.call(details);
-        };
-        addTearDown(() => FlutterError.onError = originalOnError);
-
         tester.view.physicalSize = Size(width, 800);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
