@@ -11,10 +11,51 @@ class AnalyticsService:
     """
     Computes unified personal spending analytics, combining Bank Transactions and Cash Expenses
     into Total Personal Spending with date-range boundaries (PRD Sections 25-26 & Cash Expense Tracking).
+
+    Transaction dates are stored canonically as YYYY-MM-DD. Statement metadata can arrive in
+    several display formats, so all analytics date boundaries are normalized before filtering.
     """
 
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def _normalize_date(value: Optional[str]) -> Optional[str]:
+        """Normalize statement/date metadata to canonical YYYY-MM-DD."""
+        if not value:
+            return None
+        text = str(value).strip()
+        for fmt in (
+            "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+            "%d/%m/%y", "%d-%m-%y", "%d.%m.%y",
+            "%d %b %Y", "%d %B %Y", "%d-%b-%Y", "%d-%b-%y",
+            "%d %b %y", "%d %B %y",
+        ):
+            try:
+                return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        return None
+
+    @classmethod
+    def _normalize_range(cls, start_date: Optional[str], end_date: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+        """Return canonical inclusive date boundaries."""
+        start = cls._normalize_date(start_date)
+        end = cls._normalize_date(end_date)
+        if start and end and start > end:
+            return end, start
+        return start, end
+
+    @staticmethod
+    def _is_spending_transaction(df: pd.DataFrame) -> pd.DataFrame:
+        """Return actual spending debits, excluding transfers and cash withdrawals."""
+        if df.empty:
+            return df
+        excluded_types = {"transfer", "cash_withdrawal"}
+        return df[
+            (df["cr_dr"] == "DR")
+            & (~df["transaction_type"].fillna("").str.lower().isin(excluded_types))
+        ]
 
     def _get_user_transactions_df(self, user_id: str) -> pd.DataFrame:
         """Fetches user bank transactions and returns as Pandas DataFrame."""
@@ -78,10 +119,12 @@ class AnalyticsService:
         starts = []
         ends = []
         for s in stmts:
-            if s.statement_start and len(s.statement_start) >= 10:
-                starts.append(s.statement_start[:10])
-            if s.statement_end and len(s.statement_end) >= 10:
-                ends.append(s.statement_end[:10])
+            normalized_start = self._normalize_date(s.statement_start)
+            normalized_end = self._normalize_date(s.statement_end)
+            if normalized_start:
+                starts.append(normalized_start)
+            if normalized_end:
+                ends.append(normalized_end)
 
         start_date = min(starts) if starts else None
         end_date = max(ends) if ends else None
@@ -149,7 +192,8 @@ class AnalyticsService:
                 "total_spending": 0.0
             }
 
-        # Determine effective date range
+        # Determine effective date range. Normalize caller-provided dates and statement
+        # metadata before comparing against canonical transaction dates.
         period_start = start_date
         period_end = end_date
 
@@ -162,32 +206,45 @@ class AnalyticsService:
                 period_start = cash_df["date"].min()
                 period_end = cash_df["date"].max()
 
-        # Filter Bank Transactions within range
-        if not bank_df.empty and period_start and period_end:
+        period_start, period_end = self._normalize_range(period_start, period_end)
+        start_dt = pd.Timestamp(period_start) if period_start else None
+        end_dt = pd.Timestamp(period_end) if period_end else None
+
+        if not bank_df.empty and start_dt is not None and end_dt is not None:
             bank_in_range_df = bank_df[
-                (bank_df["date"] >= period_start) & (bank_df["date"] <= period_end)
+                (bank_df["date_dt"] >= start_dt) & (bank_df["date_dt"] <= end_dt)
             ]
         else:
             bank_in_range_df = bank_df
 
-        # Filter Cash Expenses within the exact same statement/analytics range
-        if not cash_df.empty and period_start and period_end:
+        if not cash_df.empty and start_dt is not None and end_dt is not None:
             cash_in_range_df = cash_df[
-                (cash_df["date"] >= period_start) & (cash_df["date"] <= period_end)
+                (cash_df["date_dt"] >= start_dt) & (cash_df["date_dt"] <= end_dt)
             ]
         else:
             cash_in_range_df = cash_df
 
-        # Calculate Bank vs Cash Debits
-        bank_expenses_df = bank_in_range_df[bank_in_range_df["cr_dr"] == "DR"] if not bank_in_range_df.empty else pd.DataFrame()
+        # Actual spending excludes internal transfers and cash withdrawals.
+        bank_expenses_df = self._is_spending_transaction(bank_in_range_df)
         bank_spending = float(bank_expenses_df["amount"].sum()) if not bank_expenses_df.empty else 0.0
         cash_spending = float(cash_in_range_df["amount"].sum()) if not cash_in_range_df.empty else 0.0
         total_spending = round(bank_spending + cash_spending, 2)
         total_expense = total_spending
 
-        # Incomes and Transfers (from bank)
-        income_df = bank_in_range_df[bank_in_range_df["cr_dr"] == "CR"] if not bank_in_range_df.empty else pd.DataFrame()
-        transfers_df = bank_in_range_df[bank_in_range_df["transaction_type"] == "transfer"] if not bank_in_range_df.empty else pd.DataFrame()
+        # Incomes and Transfers (from bank). Internal transfers are not income.
+        income_df = (
+            bank_in_range_df[
+                (bank_in_range_df["cr_dr"] == "CR")
+                & (~bank_in_range_df["transaction_type"].fillna("").str.lower().eq("transfer"))
+            ]
+            if not bank_in_range_df.empty
+            else pd.DataFrame()
+        )
+        transfers_df = (
+            bank_in_range_df[bank_in_range_df["transaction_type"].fillna("").str.lower() == "transfer"]
+            if not bank_in_range_df.empty
+            else pd.DataFrame()
+        )
 
         total_income = float(income_df["amount"].sum()) if not income_df.empty else 0.0
         total_transfers = float(transfers_df["amount"].sum()) if not transfers_df.empty else 0.0
@@ -304,10 +361,14 @@ class AnalyticsService:
                 period_start = stmt_start
                 period_end = stmt_end
 
-        if not bank_df.empty and period_start and period_end:
-            bank_df = bank_df[(bank_df["date"] >= period_start) & (bank_df["date"] <= period_end)]
-        if not cash_df.empty and period_start and period_end:
-            cash_df = cash_df[(cash_df["date"] >= period_start) & (cash_df["date"] <= period_end)]
+        period_start, period_end = self._normalize_range(period_start, period_end)
+        start_dt = pd.Timestamp(period_start) if period_start else None
+        end_dt = pd.Timestamp(period_end) if period_end else None
+
+        if not bank_df.empty and start_dt is not None and end_dt is not None:
+            bank_df = bank_df[(bank_df["date_dt"] >= start_dt) & (bank_df["date_dt"] <= end_dt)]
+        if not cash_df.empty and start_dt is not None and end_dt is not None:
+            cash_df = cash_df[(cash_df["date_dt"] >= start_dt) & (cash_df["date_dt"] <= end_dt)]
 
         # Collect distinct year_month periods
         periods = set()
@@ -323,9 +384,14 @@ class AnalyticsService:
             b_group = bank_df[bank_df["year_month"] == ym] if not bank_df.empty else pd.DataFrame()
             c_group = cash_df[cash_df["year_month"] == ym] if not cash_df.empty else pd.DataFrame()
 
-            bank_exp = float(b_group[b_group["cr_dr"] == "DR"]["amount"].sum()) if not b_group.empty else 0.0
+            bank_exp = float(self._is_spending_transaction(b_group)["amount"].sum()) if not b_group.empty else 0.0
             cash_exp = float(c_group["amount"].sum()) if not c_group.empty else 0.0
-            bank_inc = float(b_group[b_group["cr_dr"] == "CR"]["amount"].sum()) if not b_group.empty else 0.0
+            bank_inc = float(
+                b_group[
+                    (b_group["cr_dr"] == "CR")
+                    & (~b_group["transaction_type"].fillna("").str.lower().eq("transfer"))
+                ]["amount"].sum()
+            ) if not b_group.empty else 0.0
 
             total_exp = round(bank_exp + cash_exp, 2)
             total_inc = round(bank_inc, 2)
@@ -368,12 +434,16 @@ class AnalyticsService:
                 start_date = cash_df["date"].min()
                 end_date = cash_df["date"].max()
 
-        if not bank_df.empty and start_date and end_date:
-            bank_df = bank_df[(bank_df["date"] >= start_date) & (bank_df["date"] <= end_date)]
-        if not cash_df.empty and start_date and end_date:
-            cash_df = cash_df[(cash_df["date"] >= start_date) & (cash_df["date"] <= end_date)]
+        start_date, end_date = self._normalize_range(start_date, end_date)
+        start_dt = pd.Timestamp(start_date) if start_date else None
+        end_dt = pd.Timestamp(end_date) if end_date else None
 
-        bank_exp_df = bank_df[bank_df["cr_dr"] == "DR"] if not bank_df.empty else pd.DataFrame()
+        if not bank_df.empty and start_dt is not None and end_dt is not None:
+            bank_df = bank_df[(bank_df["date_dt"] >= start_dt) & (bank_df["date_dt"] <= end_dt)]
+        if not cash_df.empty and start_dt is not None and end_dt is not None:
+            cash_df = cash_df[(cash_df["date_dt"] >= start_dt) & (cash_df["date_dt"] <= end_dt)]
+
+        bank_exp_df = self._is_spending_transaction(bank_df)
 
         # Collect all unique categories
         categories = set()
@@ -424,7 +494,7 @@ class AnalyticsService:
         if df.empty:
             return []
 
-        exp_df = df[df["cr_dr"] == "DR"]
+        exp_df = self._is_spending_transaction(df)
         if exp_df.empty:
             return []
 

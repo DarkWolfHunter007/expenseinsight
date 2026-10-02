@@ -211,13 +211,34 @@ class PDFExtractor:
         return None
 
     def _extract_statement_period(self, text: str) -> Tuple[Optional[str], Optional[str]]:
-        """Extracts start and end date of statement period supporting multiple formats."""
+        """
+        Extract and normalize statement period boundaries.
+
+        Transaction records are stored as YYYY-MM-DD. Returning the same canonical
+        format here prevents analytics from comparing ISO transaction dates against
+        display-formatted statement dates such as 01/09/2026 or 01-Sep-2026.
+        """
         date_pat = r'(?:\d{1,2}[-/.\s](?:[A-Za-z]{3,9}|\d{1,2})[-/.\s]\d{2,4})'
         period_match = re.search(
             rf'(?:period|from)[:\s]*({date_pat})\s*(?:to|-)\s*({date_pat})',
             text,
             re.IGNORECASE
         )
-        if period_match:
-            return period_match.group(1).strip(), period_match.group(2).strip()
-        return None, None
+        if not period_match:
+            return None, None
+
+        def normalize(value: str) -> Optional[str]:
+            value = value.strip()
+            for fmt in (
+                "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+                "%d/%m/%y", "%d-%m-%y", "%d.%m.%y",
+                "%d %b %Y", "%d %B %Y", "%d-%b-%Y", "%d-%b-%y",
+                "%d %b %y", "%d %B %y", "%Y-%m-%d",
+            ):
+                try:
+                    return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            return None
+
+        return normalize(period_match.group(1)), normalize(period_match.group(2))
