@@ -47,6 +47,12 @@ class DashboardScreen extends StatelessWidget {
         final uncertainCount = txnProv.uncertainTransactions.length;
         final recentTransactions = txnProv.transactions.take(4).toList();
 
+        if (forecastProv.isStale && !forecastProv.isLoading) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            forecastProv.fetchForecast();
+          });
+        }
+
         if (analyticsProv.isLoading && summary == null) {
           return const Scaffold(
             body: Center(

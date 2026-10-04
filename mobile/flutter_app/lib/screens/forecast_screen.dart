@@ -7,8 +7,25 @@ import '../config/category_colors.dart';
 import '../providers/forecast_provider.dart';
 import '../widgets/spending_metric_card.dart';
 
-class ForecastScreen extends StatelessWidget {
+class ForecastScreen extends StatefulWidget {
   const ForecastScreen({super.key});
+
+  @override
+  State<ForecastScreen> createState() => _ForecastScreenState();
+}
+
+class _ForecastScreenState extends State<ForecastScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final provider = Provider.of<ForecastProvider>(context, listen: false);
+      if (provider.forecast == null || provider.isStale) {
+        provider.fetchForecast();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,9 +47,59 @@ class ForecastScreen extends StatelessWidget {
         builder: (context, provider, child) {
           final forecast = provider.forecast;
 
+          if (provider.isStale && !provider.isLoading) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                provider.fetchForecast();
+              }
+            });
+          }
+
           if (provider.isLoading && forecast == null) {
             return const Center(
               child: CircularProgressIndicator(color: Color(0xFF10B981)),
+            );
+          }
+
+          if (provider.errorMessage != null && forecast == null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to Load Forecast',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      provider.errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => provider.fetchForecast(),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
 
