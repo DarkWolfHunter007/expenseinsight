@@ -40,7 +40,7 @@ class ExpenseForecaster:
             df = df[df["transaction_type"].isin(["expense", "debit", "DR", "dr"])]
         
         if "category" in df.columns:
-            df = df[~df["category"].isin(["Income", "income"])]
+            df = df[~df["category"].fillna("").astype(str).str.lower().isin(["income", "transfer", "transfers", "cash withdrawal", "cash_withdrawal"])]
 
         if df.empty:
             return pd.DataFrame()

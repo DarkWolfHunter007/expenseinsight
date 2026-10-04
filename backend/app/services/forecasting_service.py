@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from backend.ml.forecasting.forecaster import ExpenseForecaster
 from ..models.db_models import CashExpense, Forecast, Transaction
+from .accounting import AccountingPolicy
 
 class ForecastingService:
     """
@@ -46,16 +47,17 @@ class ForecastingService:
                 "explanation_bullets": ["Upload bank statements or record cash expenses to view predictive spending forecasts."]
             }
 
-        # Convert bank transactions to dicts for forecaster
+        # Convert bank transactions to dicts for forecaster, excluding transfers & cash withdrawals
         txn_dicts = [
             {
                 "date": t.date,
                 "amount": t.amount,
                 "category": t.category,
-                "transaction_type": t.transaction_type,
-                "cr_dr": t.cr_dr
+                "transaction_type": "expense",
+                "cr_dr": "DR"
             }
             for t in txns
+            if AccountingPolicy.is_personal_expense(t)
         ]
 
         # Add manual cash expenses into total spending stream

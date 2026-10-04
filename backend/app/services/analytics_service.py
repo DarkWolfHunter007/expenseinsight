@@ -6,6 +6,8 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from ..models.db_models import CashExpense, Statement, Transaction
+from .accounting import AccountingPolicy
+
 
 class AnalyticsService:
     """
@@ -48,20 +50,31 @@ class AnalyticsService:
 
     @staticmethod
     def _is_spending_transaction(df: pd.DataFrame) -> pd.DataFrame:
-        """Return actual spending debits, excluding transfers and cash withdrawals."""
-        if df.empty:
-            return df
-        excluded_types = {"transfer", "cash_withdrawal"}
-        return df[
-            (df["cr_dr"] == "DR")
-            & (~df["transaction_type"].fillna("").str.lower().isin(excluded_types))
-        ]
+        """
+        Return actual spending debits, excluding transfers and cash withdrawals.
+        Delegates to canonical AccountingPolicy.
+        """
+        return AccountingPolicy.filter_personal_expenses(df)
+
+    STANDARD_COLUMNS = [
+        "id", "date", "amount", "category", "merchant", "normalized_merchant",
+        "transaction_type", "cr_dr", "needs_review", "created_at", "source", "date_dt"
+    ]
+
+    @classmethod
+    def _empty_df(cls) -> pd.DataFrame:
+        df = pd.DataFrame(columns=cls.STANDARD_COLUMNS)
+        df["amount"] = df["amount"].astype(float)
+        df["date_dt"] = pd.to_datetime(df["date_dt"])
+        return df
 
     def _get_user_transactions_df(self, user_id: str) -> pd.DataFrame:
         """Fetches user bank transactions and returns as Pandas DataFrame."""
+        if self.db is None:
+            return self._empty_df()
         txns = self.db.query(Transaction).filter(Transaction.user_id == user_id).all()
         if not txns:
-            return pd.DataFrame()
+            return self._empty_df()
 
         data = []
         for t in txns:
@@ -86,9 +99,11 @@ class AnalyticsService:
 
     def _get_user_cash_expenses_df(self, user_id: str) -> pd.DataFrame:
         """Fetches user cash expenses and returns as Pandas DataFrame."""
+        if self.db is None:
+            return self._empty_df()
         cash_list = self.db.query(CashExpense).filter(CashExpense.user_id == user_id).all()
         if not cash_list:
-            return pd.DataFrame()
+            return self._empty_df()
 
         data = []
         for c in cash_list:
@@ -115,6 +130,8 @@ class AnalyticsService:
         """
         Retrieves the earliest start date and latest end date from the user's uploaded statements.
         """
+        if self.db is None:
+            return None, None
         stmts = self.db.query(Statement).filter(Statement.user_id == user_id).all()
         starts = []
         ends = []
@@ -130,6 +147,63 @@ class AnalyticsService:
         end_date = max(ends) if ends else None
         return start_date, end_date
 
+    def _get_effective_date_bounds(
+        self,
+        user_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        bank_df: Optional[pd.DataFrame] = None,
+        cash_df: Optional[pd.DataFrame] = None
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Determines the single authoritative effective analytics date range:
+        1. Explicit start_date/end_date supplied -> Use those normalized dates.
+        2. If statements or bank transactions exist -> Union of statement coverage
+           and bank transaction dates so that no persisted transactions are hidden.
+        3. If cash-only (no statements/bank transactions) -> Span of cash expenses.
+        """
+        norm_start, norm_end = self._normalize_range(start_date, end_date)
+        if norm_start and norm_end:
+            return norm_start, norm_end
+
+        stmt_start, stmt_end = self._get_statement_date_bounds(user_id)
+
+        bank_dates: List[str] = []
+        if bank_df is not None and not bank_df.empty and "date" in bank_df.columns:
+            bank_dates = [d for raw_d in bank_df["date"].dropna().astype(str) if (d := self._normalize_date(raw_d))]
+
+        cash_dates: List[str] = []
+        if cash_df is not None and not cash_df.empty and "date" in cash_df.columns:
+            cash_dates = [d for raw_d in cash_df["date"].dropna().astype(str) if (d := self._normalize_date(raw_d))]
+
+        # If statements or bank transactions exist, derive range from statement bounds + bank transactions
+        if stmt_start or stmt_end or bank_dates:
+            min_candidates = [d for d in [stmt_start, (min(bank_dates) if bank_dates else None)] if d]
+            max_candidates = [d for d in [stmt_end, (max(bank_dates) if bank_dates else None)] if d]
+            eff_start = min(min_candidates) if min_candidates else None
+            eff_end = max(max_candidates) if max_candidates else None
+            return eff_start, eff_end
+
+        # If no statements or bank transactions exist, derive from cash expenses
+        if cash_dates:
+            return min(cash_dates), max(cash_dates)
+
+        return None, None
+
+    @classmethod
+    def _filter_df_by_date(
+        cls,
+        df: pd.DataFrame,
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> pd.DataFrame:
+        """Filters a DataFrame containing date_dt column to [start_date, end_date]."""
+        if df.empty or not start_date or not end_date:
+            return df
+        start_dt = pd.Timestamp(start_date)
+        end_dt = pd.Timestamp(end_date)
+        return df[(df["date_dt"] >= start_dt) & (df["date_dt"] <= end_dt)]
+
     def get_summary(
         self,
         user_id: str,
@@ -144,9 +218,12 @@ class AnalyticsService:
         cash_df = self._get_user_cash_expenses_df(user_id)
 
         # Retrieve active statements for statement context
-        user_stmts = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).all()
-        stmt_count = len(user_stmts)
-        distinct_banks = [b for b in dict.fromkeys(s.bank_name for s in user_stmts if s.bank_name and s.bank_name not in ("Generic Bank", "Bank Statement"))]
+        stmt_count = 0
+        distinct_banks = []
+        if self.db is not None:
+            user_stmts = self.db.query(Statement).filter(Statement.user_id == user_id).order_by(Statement.created_at.desc()).all()
+            stmt_count = len(user_stmts)
+            distinct_banks = [b for b in dict.fromkeys(s.bank_name for s in user_stmts if s.bank_name and s.bank_name not in ("Generic Bank", "Bank Statement"))]
 
         if stmt_count > 1:
             if len(distinct_banks) == 1:
@@ -192,65 +269,36 @@ class AnalyticsService:
                 "total_spending": 0.0
             }
 
-        # Determine effective date range. Normalize caller-provided dates and statement
-        # metadata before comparing against canonical transaction dates.
-        period_start = start_date
-        period_end = end_date
+        # Determine authoritative effective date range
+        period_start, period_end = self._get_effective_date_bounds(
+            user_id,
+            start_date=start_date,
+            end_date=end_date,
+            bank_df=bank_df,
+            cash_df=cash_df
+        )
 
-        if not period_start or not period_end:
-            stmt_start, stmt_end = self._get_statement_date_bounds(user_id)
-            if not bank_df.empty:
-                period_start = stmt_start or bank_df["date"].min()
-                period_end = stmt_end or bank_df["date"].max()
-            else:
-                period_start = cash_df["date"].min()
-                period_end = cash_df["date"].max()
+        bank_in_range_df = self._filter_df_by_date(bank_df, period_start, period_end)
+        cash_in_range_df = self._filter_df_by_date(cash_df, period_start, period_end)
 
-        period_start, period_end = self._normalize_range(period_start, period_end)
-        start_dt = pd.Timestamp(period_start) if period_start else None
-        end_dt = pd.Timestamp(period_end) if period_end else None
-
-        if not bank_df.empty and start_dt is not None and end_dt is not None:
-            bank_in_range_df = bank_df[
-                (bank_df["date_dt"] >= start_dt) & (bank_df["date_dt"] <= end_dt)
-            ]
-        else:
-            bank_in_range_df = bank_df
-
-        if not cash_df.empty and start_dt is not None and end_dt is not None:
-            cash_in_range_df = cash_df[
-                (cash_df["date_dt"] >= start_dt) & (cash_df["date_dt"] <= end_dt)
-            ]
-        else:
-            cash_in_range_df = cash_df
-
-        # Actual spending excludes internal transfers and cash withdrawals.
-        bank_expenses_df = self._is_spending_transaction(bank_in_range_df)
-        bank_spending = float(bank_expenses_df["amount"].sum()) if not bank_expenses_df.empty else 0.0
-        cash_spending = float(cash_in_range_df["amount"].sum()) if not cash_in_range_df.empty else 0.0
+        # Actual personal spending debits: exclude transfers and cash withdrawals
+        bank_expenses_df = AccountingPolicy.filter_personal_expenses(bank_in_range_df)
+        bank_spending = round(float(bank_expenses_df["amount"].sum()), 2) if not bank_expenses_df.empty and "amount" in bank_expenses_df.columns else 0.0
+        cash_spending = round(float(cash_in_range_df["amount"].sum()), 2) if not cash_in_range_df.empty and "amount" in cash_in_range_df.columns else 0.0
         total_spending = round(bank_spending + cash_spending, 2)
         total_expense = total_spending
 
-        # Incomes and Transfers (from bank). Internal transfers are not income.
-        income_df = (
-            bank_in_range_df[
-                (bank_in_range_df["cr_dr"] == "CR")
-                & (~bank_in_range_df["transaction_type"].fillna("").str.lower().eq("transfer"))
-            ]
-            if not bank_in_range_df.empty
-            else pd.DataFrame()
-        )
-        transfers_df = (
-            bank_in_range_df[bank_in_range_df["transaction_type"].fillna("").str.lower() == "transfer"]
-            if not bank_in_range_df.empty
-            else pd.DataFrame()
-        )
+        # Income: credits excluding transfers
+        income_df = AccountingPolicy.filter_income(bank_in_range_df)
+        total_income = round(float(income_df["amount"].sum()), 2) if not income_df.empty and "amount" in income_df.columns else 0.0
 
-        total_income = float(income_df["amount"].sum()) if not income_df.empty else 0.0
-        total_transfers = float(transfers_df["amount"].sum()) if not transfers_df.empty else 0.0
+        # Transfers: neutral money movements
+        transfers_df = AccountingPolicy.filter_transfers(bank_in_range_df)
+        total_transfers = round(float(transfers_df["amount"].sum()), 2) if not transfers_df.empty and "amount" in transfers_df.columns else 0.0
+
         net_savings = round(total_income - total_expense, 2)
 
-        # Date range & daily average
+        # Date range & daily average calculation
         date_series_list = []
         if not bank_in_range_df.empty:
             date_series_list.append(bank_in_range_df["date_dt"])
@@ -267,9 +315,12 @@ class AnalyticsService:
         else:
             days_span = 1
             avg_daily = 0.0
-            period_str = "No activity in period"
+            if stmt_count > 0 or not cash_df.empty or not bank_df.empty:
+                period_str = "No activity in period"
+            else:
+                period_str = "No statements uploaded"
 
-        # Month-over-month (combining bank and cash expenses)
+        # Month-over-month calculation (combining bank and cash expenses)
         all_expenses_list = []
         if not bank_expenses_df.empty:
             all_expenses_list.append(bank_expenses_df[["date_dt", "amount"]])
@@ -297,18 +348,26 @@ class AnalyticsService:
             prev_month_spent = 0.0
             mom_change = 0.0
 
-        # Unified Category Breakdown
+        # Unified Category Breakdown (sharing exact same period)
         categories_breakdown = self.get_category_spending(
             user_id=user_id,
             start_date=period_start,
             end_date=period_end
         )
 
-        # Top Merchants (bank only)
-        top_merchants = self.get_merchant_spending(user_id)[:10]
+        # Top Merchants (sharing exact same period and accounting policy)
+        top_merchants = self.get_merchant_spending(
+            user_id=user_id,
+            start_date=period_start,
+            end_date=period_end
+        )[:10]
 
-        # Recurring Expenses (bank only)
-        recurring = self.get_recurring_expenses(user_id)
+        # Recurring Expenses (sharing exact same period and accounting policy)
+        recurring = self.get_recurring_expenses(
+            user_id=user_id,
+            start_date=period_start,
+            end_date=period_end
+        )
 
         if not cash_in_range_df.empty and bank_in_range_df.empty:
             bank_name = "Cash & Liquid Expenses"
@@ -344,7 +403,8 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         """
         Returns chronological monthly breakdown of income and expenses,
-        combining bank spending and cash spending by month based on expense_date.
+        combining bank spending and cash spending by month based on date.
+        Reconciles with get_summary() total_expense across identical date bounds.
         """
         bank_df = self._get_user_transactions_df(user_id)
         cash_df = self._get_user_cash_expenses_df(user_id)
@@ -352,23 +412,16 @@ class AnalyticsService:
         if bank_df.empty and cash_df.empty:
             return []
 
-        # Effective date range: if statements exist, match statement period
-        period_start = start_date
-        period_end = end_date
-        if not period_start or not period_end:
-            stmt_start, stmt_end = self._get_statement_date_bounds(user_id)
-            if stmt_start and stmt_end:
-                period_start = stmt_start
-                period_end = stmt_end
+        period_start, period_end = self._get_effective_date_bounds(
+            user_id,
+            start_date=start_date,
+            end_date=end_date,
+            bank_df=bank_df,
+            cash_df=cash_df
+        )
 
-        period_start, period_end = self._normalize_range(period_start, period_end)
-        start_dt = pd.Timestamp(period_start) if period_start else None
-        end_dt = pd.Timestamp(period_end) if period_end else None
-
-        if not bank_df.empty and start_dt is not None and end_dt is not None:
-            bank_df = bank_df[(bank_df["date_dt"] >= start_dt) & (bank_df["date_dt"] <= end_dt)]
-        if not cash_df.empty and start_dt is not None and end_dt is not None:
-            cash_df = cash_df[(cash_df["date_dt"] >= start_dt) & (cash_df["date_dt"] <= end_dt)]
+        bank_df = self._filter_df_by_date(bank_df, period_start, period_end)
+        cash_df = self._filter_df_by_date(cash_df, period_start, period_end)
 
         # Collect distinct year_month periods
         periods = set()
@@ -384,14 +437,12 @@ class AnalyticsService:
             b_group = bank_df[bank_df["year_month"] == ym] if not bank_df.empty else pd.DataFrame()
             c_group = cash_df[cash_df["year_month"] == ym] if not cash_df.empty else pd.DataFrame()
 
-            bank_exp = float(self._is_spending_transaction(b_group)["amount"].sum()) if not b_group.empty else 0.0
+            b_exp = AccountingPolicy.filter_personal_expenses(b_group)
+            b_inc = AccountingPolicy.filter_income(b_group)
+
+            bank_exp = float(b_exp["amount"].sum()) if not b_exp.empty else 0.0
             cash_exp = float(c_group["amount"].sum()) if not c_group.empty else 0.0
-            bank_inc = float(
-                b_group[
-                    (b_group["cr_dr"] == "CR")
-                    & (~b_group["transaction_type"].fillna("").str.lower().eq("transfer"))
-                ]["amount"].sum()
-            ) if not b_group.empty else 0.0
+            bank_inc = float(b_inc["amount"].sum()) if not b_inc.empty else 0.0
 
             total_exp = round(bank_exp + cash_exp, 2)
             total_inc = round(bank_inc, 2)
@@ -420,32 +471,25 @@ class AnalyticsService:
         """
         Returns aggregated spending per category combining Bank Debits and Cash Expenses.
         Includes bank_amount, cash_amount, total amount, and percentage share.
+        Guarantees:
+          SUM(category.amount) == total personal spending
         """
         bank_df = self._get_user_transactions_df(user_id)
         cash_df = self._get_user_cash_expenses_df(user_id)
 
-        # Apply date range filtering if applicable
-        if not start_date or not end_date:
-            stmt_start, stmt_end = self._get_statement_date_bounds(user_id)
-            if not bank_df.empty:
-                start_date = stmt_start or bank_df["date"].min()
-                end_date = stmt_end or bank_df["date"].max()
-            elif not cash_df.empty:
-                start_date = cash_df["date"].min()
-                end_date = cash_df["date"].max()
+        period_start, period_end = self._get_effective_date_bounds(
+            user_id,
+            start_date=start_date,
+            end_date=end_date,
+            bank_df=bank_df,
+            cash_df=cash_df
+        )
 
-        start_date, end_date = self._normalize_range(start_date, end_date)
-        start_dt = pd.Timestamp(start_date) if start_date else None
-        end_dt = pd.Timestamp(end_date) if end_date else None
+        bank_df = self._filter_df_by_date(bank_df, period_start, period_end)
+        cash_df = self._filter_df_by_date(cash_df, period_start, period_end)
 
-        if not bank_df.empty and start_dt is not None and end_dt is not None:
-            bank_df = bank_df[(bank_df["date_dt"] >= start_dt) & (bank_df["date_dt"] <= end_dt)]
-        if not cash_df.empty and start_dt is not None and end_dt is not None:
-            cash_df = cash_df[(cash_df["date_dt"] >= start_dt) & (cash_df["date_dt"] <= end_dt)]
+        bank_exp_df = AccountingPolicy.filter_personal_expenses(bank_df)
 
-        bank_exp_df = self._is_spending_transaction(bank_df)
-
-        # Collect all unique categories
         categories = set()
         if not bank_exp_df.empty:
             categories.update(bank_exp_df["category"].dropna().unique())
@@ -455,7 +499,6 @@ class AnalyticsService:
         if not categories:
             return []
 
-        # Sum per category
         bank_cat_sums = bank_exp_df.groupby("category")["amount"].sum().to_dict() if not bank_exp_df.empty else {}
         bank_cat_counts = bank_exp_df.groupby("category")["id"].count().to_dict() if not bank_exp_df.empty else {}
 
@@ -463,23 +506,21 @@ class AnalyticsService:
         cash_cat_counts = cash_df.groupby("category")["id"].count().to_dict() if not cash_df.empty else {}
 
         rows = []
-        overall_total = 0.0
-
         for cat in categories:
-            b_amt = float(bank_cat_sums.get(cat, 0.0))
-            c_amt = float(cash_cat_sums.get(cat, 0.0))
+            b_amt = round(float(bank_cat_sums.get(cat, 0.0)), 2)
+            c_amt = round(float(cash_cat_sums.get(cat, 0.0)), 2)
             tot_amt = round(b_amt + c_amt, 2)
             tot_count = int(bank_cat_counts.get(cat, 0)) + int(cash_cat_counts.get(cat, 0))
-            overall_total += tot_amt
             rows.append({
                 "category": str(cat),
                 "amount": tot_amt,
                 "transaction_count": tot_count,
-                "bank_amount": round(b_amt, 2),
-                "cash_amount": round(c_amt, 2)
+                "bank_amount": b_amt,
+                "cash_amount": c_amt
             })
 
-        # Calculate percentages and sort descending
+        overall_total = round(sum(r["amount"] for r in rows), 2)
+
         results = []
         for r in sorted(rows, key=lambda x: x["amount"], reverse=True):
             pct = round((r["amount"] / overall_total) * 100.0, 1) if overall_total > 0 else 0.0
@@ -488,17 +529,33 @@ class AnalyticsService:
 
         return results
 
-    def get_merchant_spending(self, user_id: str) -> List[Dict[str, Any]]:
-        """Returns top bank merchants ranked by total expenditure."""
+    def get_merchant_spending(
+        self,
+        user_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns top bank merchants ranked by total expenditure within the analytics window.
+        Strictly excludes internal transfers and cash withdrawals.
+        """
         df = self._get_user_transactions_df(user_id)
         if df.empty:
             return []
 
-        exp_df = self._is_spending_transaction(df)
+        period_start, period_end = self._get_effective_date_bounds(
+            user_id,
+            start_date=start_date,
+            end_date=end_date,
+            bank_df=df
+        )
+        df = self._filter_df_by_date(df, period_start, period_end)
+
+        exp_df = AccountingPolicy.filter_personal_expenses(df)
         if exp_df.empty:
             return []
 
-        total_exp = exp_df["amount"].sum()
+        total_exp = float(exp_df["amount"].sum())
         grouped = exp_df.groupby(["merchant", "category"]).agg(
             total_amount=("amount", "sum"),
             txn_count=("id", "count")
@@ -508,26 +565,39 @@ class AnalyticsService:
 
         results = []
         for _, row in grouped.iterrows():
-            amt = float(row["total_amount"])
+            amt = round(float(row["total_amount"]), 2)
             pct = round((amt / total_exp) * 100.0, 1) if total_exp > 0 else 0.0
             merchant_name = str(row["merchant"])
             results.append({
                 "merchant": merchant_name,
                 "canonical_name": merchant_name,
                 "category": str(row["category"]),
-                "total_amount": round(amt, 2),
+                "total_amount": amt,
                 "transaction_count": int(row["txn_count"]),
                 "percentage_of_total": pct
             })
         return results
 
-    def get_recurring_expenses(self, user_id: str) -> List[Dict[str, Any]]:
-        """Identifies repeating monthly / periodic expenses (PRD Section 26)."""
+    def get_recurring_expenses(
+        self,
+        user_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Identifies repeating monthly / periodic expenses (PRD Section 26).
+        Strictly operates on genuine personal expenses only (excluding transfers and withdrawals).
+        Requires monthly cycle spacing (interval ~20-35 days) with no immediate bursts.
+        """
         df = self._get_user_transactions_df(user_id)
         if df.empty:
             return []
 
-        exp_df = df[df["cr_dr"] == "DR"]
+        if start_date and end_date:
+            period_start, period_end = self._normalize_range(start_date, end_date)
+            df = self._filter_df_by_date(df, period_start, period_end)
+
+        exp_df = AccountingPolicy.filter_personal_expenses(df)
         if exp_df.empty:
             return []
 
@@ -537,8 +607,11 @@ class AnalyticsService:
                 dates = sorted(group["date_dt"].tolist())
                 diffs = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
                 avg_interval = np.mean(diffs) if diffs else 0
-                
-                if 20 <= avg_interval <= 35 or len(group) >= 3:
+                min_interval = min(diffs) if diffs else 0
+
+                # Must be a monthly cycle: avg interval between 20 and 35 days,
+                # and no immediate repeat within 15 days (avoids irregular bursts)
+                if (20 <= avg_interval <= 35) and (min_interval >= 15):
                     avg_amt = float(group["amount"].mean())
                     last_dt = dates[-1].strftime("%Y-%m-%d")
                     cat = group["category"].iloc[0]

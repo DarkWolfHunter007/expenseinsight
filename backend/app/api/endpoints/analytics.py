@@ -54,19 +54,23 @@ def get_category_spending(
 
 @router.get("/merchants", response_model=List[MerchantSpendingItem])
 def get_merchant_spending(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Returns top spending merchants."""
     service = AnalyticsService(db=db)
-    return service.get_merchant_spending(user_id=current_user.id)
+    return service.get_merchant_spending(user_id=current_user.id, start_date=start_date, end_date=end_date)
 
 
 @router.get("/recurring", response_model=List[RecurringExpenseItem])
 def get_recurring_expenses(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Identifies recurring subscription expenses and bill cycles (PRD Section 26)."""
     service = AnalyticsService(db=db)
-    return service.get_recurring_expenses(user_id=current_user.id)
+    return service.get_recurring_expenses(user_id=current_user.id, start_date=start_date, end_date=end_date)

@@ -209,6 +209,16 @@ class StatementProcessor:
                 self.db.add(txn)
                 processed_transactions.append(txn)
 
+            if processed_transactions:
+                txn_dates = [t.date for t in processed_transactions if t.date]
+                if txn_dates:
+                    min_t_date = min(txn_dates)
+                    max_t_date = max(txn_dates)
+                    if not stmt.statement_start or min_t_date < stmt.statement_start:
+                        stmt.statement_start = min_t_date
+                    if not stmt.statement_end or max_t_date > stmt.statement_end:
+                        stmt.statement_end = max_t_date
+
             stmt.total_transactions = len(processed_transactions)
             self.db.commit()
 
