@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../models/statement_model.dart';
 import '../services/api_service.dart';
+import '../services/expense_sync_coordinator.dart';
 
 class StatementProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -66,6 +67,7 @@ class StatementProvider extends ChangeNotifier {
 
       if (stmt != null) {
         _statements.insert(0, stmt);
+        ExpenseSyncCoordinator().notifyExpenseMutated();
       }
       return true;
     } catch (e) {
@@ -102,6 +104,7 @@ class StatementProvider extends ChangeNotifier {
         _statements.removeWhere((s) => s.id == stmt.id);
         _statements.insert(0, stmt);
         notifyListeners();
+        ExpenseSyncCoordinator().notifyExpenseMutated();
         return true;
       } else {
         _errorMessage = "Server did not return statement metadata.";
@@ -125,6 +128,7 @@ class StatementProvider extends ChangeNotifier {
       final success = await _api.deleteStatement(statementId);
       if (success) {
         _statements.removeWhere((s) => s.id == statementId);
+        ExpenseSyncCoordinator().notifyExpenseMutated();
         return true;
       }
       return false;

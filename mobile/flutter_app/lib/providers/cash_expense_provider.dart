@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/cash_expense_model.dart';
 import '../services/api_service.dart';
+import '../services/expense_sync_coordinator.dart';
 
 class CashExpenseProvider extends ChangeNotifier {
   final ApiService _apiService;
@@ -79,6 +80,7 @@ class CashExpenseProvider extends ChangeNotifier {
 
       if (newExpense != null) {
         await fetchCashExpenses();
+        ExpenseSyncCoordinator().notifyExpenseMutated();
         return true;
       } else {
         _errorMessage = 'Failed to create cash expense.';
@@ -117,6 +119,7 @@ class CashExpenseProvider extends ChangeNotifier {
 
       if (updated != null) {
         await fetchCashExpenses();
+        ExpenseSyncCoordinator().notifyExpenseMutated();
         return true;
       } else {
         _errorMessage = 'Failed to update cash expense.';
@@ -141,6 +144,7 @@ class CashExpenseProvider extends ChangeNotifier {
       if (success) {
         _cashExpenses.removeWhere((item) => item.id == id);
         notifyListeners();
+        ExpenseSyncCoordinator().notifyExpenseMutated();
         return true;
       } else {
         _errorMessage = 'Failed to delete cash expense.';

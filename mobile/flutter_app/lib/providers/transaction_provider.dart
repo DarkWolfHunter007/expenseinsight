@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/transaction_model.dart';
 import '../services/api_service.dart';
+import '../services/expense_sync_coordinator.dart';
 
 class TransactionProvider extends ChangeNotifier {
   final ApiService _api;
@@ -141,5 +142,6 @@ class TransactionProvider extends ChangeNotifier {
     }
 
     await _api.updateTransactionCategory(transactionId, newCategory, applyToFuture: applyToFuture);
+    ExpenseSyncCoordinator().notifyExpenseMutated();
   }
 }
