@@ -164,7 +164,8 @@ void main() {
       await tester.pumpWidget(createTestApp(auth));
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter your email to continue'), findsOneWidget);
+      expect(find.text('Active Session Identified'), findsOneWidget);
+      expect(find.textContaining('Identified as alice@example.com'), findsOneWidget);
     });
   });
 

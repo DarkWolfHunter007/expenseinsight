@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
+import '../services/expense_sync_coordinator.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final ApiService _api = ApiService();
+  final ApiService _api;
+  final ExpenseSyncCoordinator _coordinator;
   UserModel? _user;
   bool _isLoading = false;
   String? _errorMessage;
+
+  AuthProvider({ApiService? apiService, ExpenseSyncCoordinator? coordinator})
+      : _api = apiService ?? ApiService(),
+        _coordinator = coordinator ?? ExpenseSyncCoordinator();
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -27,7 +33,18 @@ class AuthProvider extends ChangeNotifier {
           return;
         }
       } catch (e) {
-        debugPrint('Failed to restore session on startup: $e');
+        debugPrint('Failed to restore session online: $e');
+      }
+
+      // If token is still valid (not revoked via 401) and online user was not restored,
+      // safely restore offline cached identity to prevent duplicate account creation
+      if (_user == null && _api.token != null && _api.userId != null && _api.userEmail != null) {
+        _user = UserModel(
+          id: _api.userId!,
+          email: _api.userEmail!,
+          isGuest: _api.isGuest,
+          createdAt: DateTime.now(),
+        );
       }
       _isLoading = false;
       notifyListeners();
@@ -53,6 +70,10 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final user = await _api.identifyWithEmail(cleanEmail);
+      if (_user != null && user != null && _user!.id != user.id) {
+        // Purge in-memory state of previous user so no stale data leaks
+        _coordinator.notifyUserSessionReset();
+      }
       _user = user;
       _isLoading = false;
       notifyListeners();
@@ -105,6 +126,7 @@ class AuthProvider extends ChangeNotifier {
     await _api.setToken(null);
     _user = null;
     _errorMessage = null;
+    _coordinator.notifyUserSessionReset();
     notifyListeners();
   }
 }

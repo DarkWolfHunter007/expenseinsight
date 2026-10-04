@@ -6,9 +6,13 @@ import '../services/expense_sync_coordinator.dart';
 
 class CashExpenseProvider extends ChangeNotifier {
   final ApiService _apiService;
+  final ExpenseSyncCoordinator _coordinator;
 
-  CashExpenseProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+  CashExpenseProvider({ApiService? apiService, ExpenseSyncCoordinator? coordinator})
+      : _apiService = apiService ?? ApiService(),
+        _coordinator = coordinator ?? ExpenseSyncCoordinator() {
+    _coordinator.addSessionResetListener(clear);
+  }
 
   List<CashExpenseModel> _cashExpenses = [];
   bool _isLoading = false;
@@ -54,7 +58,9 @@ class CashExpenseProvider extends ChangeNotifier {
       _errorMessage = 'Failed to load cash expenses: $e';
     } finally {
       _isLoading = false;
-      notifyListeners();
+      if (hasListeners) {
+        notifyListeners();
+      }
     }
   }
 
@@ -180,5 +186,25 @@ class CashExpenseProvider extends ChangeNotifier {
     _sortBy = sortBy;
     _sortOrder = order;
     fetchCashExpenses();
+  }
+
+  /// Clears in-memory cash expenses and resets filters on logout/account switch (Phase 12).
+  void clear() {
+    _cashExpenses = [];
+    _isLoading = false;
+    _errorMessage = null;
+    _selectedCategory = null;
+    _searchQuery = '';
+    _sortBy = 'expense_date';
+    _sortOrder = 'desc';
+    _startDate = null;
+    _endDate = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _coordinator.removeSessionResetListener(clear);
+    super.dispose();
   }
 }

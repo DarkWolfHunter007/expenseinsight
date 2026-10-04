@@ -5,7 +5,14 @@ import '../services/api_service.dart';
 import '../services/expense_sync_coordinator.dart';
 
 class StatementProvider extends ChangeNotifier {
-  final ApiService _api = ApiService();
+  final ApiService _api;
+  final ExpenseSyncCoordinator _coordinator;
+
+  StatementProvider({ApiService? apiService, ExpenseSyncCoordinator? coordinator})
+      : _api = apiService ?? ApiService(),
+        _coordinator = coordinator ?? ExpenseSyncCoordinator() {
+    _coordinator.addSessionResetListener(clear);
+  }
   List<StatementModel> _statements = [];
   bool _isLoading = false;
   bool _isUploading = false;
@@ -139,5 +146,22 @@ class StatementProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Clears in-memory statements on logout/account switch (Phase 12).
+  void clear() {
+    _statements = [];
+    _isLoading = false;
+    _isUploading = false;
+    _uploadProgress = 0.0;
+    _currentStep = 'Ready';
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _coordinator.removeSessionResetListener(clear);
+    super.dispose();
   }
 }

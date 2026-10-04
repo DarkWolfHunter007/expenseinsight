@@ -22,17 +22,20 @@ class ApiService {
   String? _token;
   String? _userEmail;
   String? _userId;
+  bool? _isGuest;
   bool isUsingMockFallback = false;
 
   String? get token => _token;
   String? get userEmail => _userEmail;
   String? get userId => _userId;
+  bool get isGuest => _isGuest ?? false;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
     _userEmail = prefs.getString('user_email');
     _userId = prefs.getString('user_id');
+    _isGuest = prefs.getBool('user_is_guest');
     final savedUrl = prefs.getString('custom_base_url');
     if (savedUrl != null && savedUrl.isNotEmpty) {
       ApiConstants.setCustomBaseUrl(savedUrl);
@@ -50,10 +53,11 @@ class ApiService {
     }
   }
 
-  Future<void> setToken(String? token, {String? email, String? userId}) async {
+  Future<void> setToken(String? token, {String? email, String? userId, bool? isGuest}) async {
     _token = token;
     _userEmail = email;
     _userId = userId;
+    _isGuest = isGuest;
     final prefs = await SharedPreferences.getInstance();
     if (token != null) {
       await prefs.setString('auth_token', token);
@@ -69,6 +73,11 @@ class ApiService {
       await prefs.setString('user_id', userId);
     } else if (token == null) {
       await prefs.remove('user_id');
+    }
+    if (isGuest != null) {
+      await prefs.setBool('user_is_guest', isGuest);
+    } else if (token == null) {
+      await prefs.remove('user_is_guest');
     }
   }
 
@@ -94,9 +103,10 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final token = data['access_token'];
-        await setToken(token);
+        final user = UserModel.fromJson(data['user']);
+        await setToken(token, email: user.email, userId: user.id, isGuest: user.isGuest);
         isUsingMockFallback = false;
-        return UserModel.fromJson(data['user']);
+        return user;
       }
     } catch (e) {
       debugPrint('API Error (loginGuest), falling back to mock: $e');
@@ -114,9 +124,10 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final token = data['access_token'];
-        await setToken(token);
+        final user = UserModel.fromJson(data['user']);
+        await setToken(token, email: user.email, userId: user.id, isGuest: user.isGuest);
         isUsingMockFallback = false;
-        return UserModel.fromJson(data['user']);
+        return user;
       }
     } catch (e) {
       debugPrint('API Error (login): $e');
@@ -141,7 +152,7 @@ class ApiService {
         final token = data['access_token'] as String?;
         final userData = data['user'] as Map<String, dynamic>;
         final user = UserModel.fromJson(userData);
-        await setToken(token, email: user.email, userId: user.id);
+        await setToken(token, email: user.email, userId: user.id, isGuest: user.isGuest);
         isUsingMockFallback = false;
         return user;
       }
@@ -162,12 +173,18 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final user = UserModel.fromJson(data);
-        await setToken(_token, email: user.email, userId: user.id);
+        await setToken(_token, email: user.email, userId: user.id, isGuest: user.isGuest);
         isUsingMockFallback = false;
         return user;
+      } else if (response.statusCode == 401) {
+        // Token has expired or is invalid on backend
+        await setToken(null);
+        return null;
       }
     } catch (e) {
       debugPrint('API Error (getMe): $e');
+      // Rethrow to signal network/offline failure so caller can preserve cached user
+      rethrow;
     }
     return null;
   }

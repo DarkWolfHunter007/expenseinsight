@@ -5,7 +5,13 @@ import '../services/expense_sync_coordinator.dart';
 
 class TransactionProvider extends ChangeNotifier {
   final ApiService _api;
-  TransactionProvider({ApiService? apiService}) : _api = apiService ?? ApiService();
+  final ExpenseSyncCoordinator _coordinator;
+
+  TransactionProvider({ApiService? apiService, ExpenseSyncCoordinator? coordinator})
+      : _api = apiService ?? ApiService(),
+        _coordinator = coordinator ?? ExpenseSyncCoordinator() {
+    _coordinator.addSessionResetListener(clear);
+  }
   List<TransactionModel> _transactions = [];
   List<UncertainReviewModel> _uncertainTransactions = [];
   bool _isLoading = false;
@@ -143,5 +149,25 @@ class TransactionProvider extends ChangeNotifier {
 
     await _api.updateTransactionCategory(transactionId, newCategory, applyToFuture: applyToFuture);
     ExpenseSyncCoordinator().notifyExpenseMutated();
+  }
+
+  /// Clears in-memory transactions and resets filters on logout/account switch (Phase 12).
+  void clear() {
+    _transactions = [];
+    _uncertainTransactions = [];
+    _selectedCategory = 'All';
+    _selectedSource = 'All';
+    _searchQuery = '';
+    _needsReviewOnly = false;
+    _sortBy = 'date';
+    _order = 'desc';
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _coordinator.removeSessionResetListener(clear);
+    super.dispose();
   }
 }

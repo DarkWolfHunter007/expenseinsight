@@ -8,6 +8,7 @@ class ExpenseSyncCoordinator {
   ExpenseSyncCoordinator._internal();
 
   final List<VoidCallback> _listeners = [];
+  final List<VoidCallback> _sessionResetListeners = [];
 
   void addListener(VoidCallback listener) {
     if (!_listeners.contains(listener)) {
@@ -26,6 +27,27 @@ class ExpenseSyncCoordinator {
         listener();
       } catch (e) {
         debugPrint('[ExpenseSyncCoordinator] Error in listener: $e');
+      }
+    }
+  }
+
+  void addSessionResetListener(VoidCallback listener) {
+    if (!_sessionResetListeners.contains(listener)) {
+      _sessionResetListeners.add(listener);
+    }
+  }
+
+  void removeSessionResetListener(VoidCallback listener) {
+    _sessionResetListeners.remove(listener);
+  }
+
+  /// Called when the current user logs out or switches accounts to purge in-memory provider state.
+  void notifyUserSessionReset() {
+    for (final listener in List.of(_sessionResetListeners)) {
+      try {
+        listener();
+      } catch (e) {
+        debugPrint('[ExpenseSyncCoordinator] Error in session reset listener: $e');
       }
     }
   }

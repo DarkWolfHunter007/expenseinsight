@@ -18,6 +18,7 @@ class ForecastProvider extends ChangeNotifier {
   })  : _api = apiService ?? ApiService(),
         _coordinator = coordinator ?? ExpenseSyncCoordinator() {
     _coordinator.addListener(_onExpenseMutated);
+    _coordinator.addSessionResetListener(clear);
   }
 
   ForecastModel? get forecast => _forecast;
@@ -27,6 +28,15 @@ class ForecastProvider extends ChangeNotifier {
 
   void _onExpenseMutated() {
     invalidate(autoRefresh: true);
+  }
+
+  /// Clears in-memory forecast data on logout/account switch (Phase 12).
+  void clear() {
+    _forecast = null;
+    _isLoading = false;
+    _isStale = false;
+    _errorMessage = null;
+    notifyListeners();
   }
 
   /// Marks forecast state as stale and triggers background recalculation if autoRefresh is true.
@@ -59,6 +69,7 @@ class ForecastProvider extends ChangeNotifier {
   @override
   void dispose() {
     _coordinator.removeListener(_onExpenseMutated);
+    _coordinator.removeSessionResetListener(clear);
     super.dispose();
   }
 }
