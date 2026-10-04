@@ -575,5 +575,4 @@ class TestUPIBankSourceSeparation:
             assert txns[2].source_type == "upi"
             assert txns[3].source_type == "bank"
         finally:
-            db.close()
-\n
+            db.close()
