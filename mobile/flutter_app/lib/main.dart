@@ -9,6 +9,7 @@ import 'providers/forecast_provider.dart';
 import 'providers/model_provider.dart';
 import 'providers/statement_provider.dart';
 import 'providers/transaction_provider.dart';
+import 'screens/main_navigation_screen.dart';
 import 'screens/onboarding_screen.dart';
 
 void main() async {
@@ -38,13 +39,19 @@ class ExpenseInsightApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ExpenseInsight',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      home: const OnboardingScreen(),
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        final bool isUserRestored = auth.isAuthenticated && !auth.user!.isGuest;
+
+        return MaterialApp(
+          title: 'ExpenseInsight',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: ThemeMode.system,
+          home: isUserRestored ? const MainNavigationScreen() : const OnboardingScreen(),
+        );
+      },
     );
   }
 }

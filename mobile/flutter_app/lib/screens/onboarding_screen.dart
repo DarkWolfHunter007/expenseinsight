@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/cash_expense_provider.dart';
 import '../providers/statement_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/analytics_provider.dart';
@@ -20,10 +21,69 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  final TextEditingController _emailController = TextEditingController();
   bool _isLoading = false;
+  String? _localError;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _continueWithEmail() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+      setState(() {
+        _localError = 'Please enter a valid email address.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _localError = null;
+    });
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final success = await auth.identifyWithEmail(email);
+
+    if (!mounted) return;
+
+    if (success) {
+      final stmtProv = Provider.of<StatementProvider>(context, listen: false);
+      final txnProv = Provider.of<TransactionProvider>(context, listen: false);
+      final cashProv = Provider.of<CashExpenseProvider>(context, listen: false);
+      final analyticsProv = Provider.of<AnalyticsProvider>(context, listen: false);
+      final forecastProv = Provider.of<ForecastProvider>(context, listen: false);
+
+      await Future.wait([
+        stmtProv.fetchStatements(),
+        txnProv.fetchTransactions(),
+        cashProv.fetchCashExpenses(),
+        analyticsProv.fetchAnalytics(),
+        forecastProv.fetchForecast(),
+      ]);
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+      );
+    } else {
+      setState(() {
+        _isLoading = false;
+        _localError = auth.errorMessage ?? 'Failed to identify user. Please try again.';
+      });
+    }
+  }
 
   void _startGuestDemo() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _localError = null;
+    });
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final stmtProv = Provider.of<StatementProvider>(context, listen: false);
     final txnProv = Provider.of<TransactionProvider>(context, listen: false);
@@ -148,40 +208,148 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: 36),
 
-                  // Action Buttons
-                  if (_isLoading)
-                    const CircularProgressIndicator(color: Color(0xFF10B981))
-                  else ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _startGuestDemo(),
-                        icon: const Icon(Icons.flash_on_rounded, size: 20),
-                        label: const Text('Launch 1-Click Demo (HDFC 6-Mo)'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: const Color(0xFF10B981),
+                  // Email Identity Section
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      final isIdentified = auth.isAuthenticated && !auth.user!.isGuest;
+                      if (isIdentified && _emailController.text.isEmpty) {
+                        _emailController.text = auth.user!.email;
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isIdentified
+                                  ? 'Active Session Identified'
+                                  : 'Enter your email to continue',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isIdentified
+                                  ? 'Identified as ${auth.user!.email}. Continue to restore your data or enter a new email.'
+                                  : 'Identify yourself to persist your transactions, statements, and AI predictions.',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              key: const Key('email_identity_input'),
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _continueWithEmail(),
+                              decoration: InputDecoration(
+                                hintText: 'name@example.com',
+                                prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            if (_localError != null) ...[
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFEF4444)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _localError!,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: const Color(0xFFEF4444),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                key: const Key('continue_with_email_button'),
+                                onPressed: _isLoading ? null : () => _continueWithEmail(),
+                                icon: _isLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : const Icon(Icons.arrow_forward_rounded, size: 18),
+                                label: Text(_isLoading ? 'Identifying...' : 'Continue with Email'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'OR EXPLORE DEMO',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Continue to Dashboard'),
+                      Expanded(child: Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: const Key('guest_demo_button'),
+                      onPressed: _isLoading ? null : () => _startGuestDemo(),
+                      icon: const Icon(Icons.flash_on_rounded, size: 18),
+                      label: const Text('Launch 1-Click Demo (HDFC 6-Mo)'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
