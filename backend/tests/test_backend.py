@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import pytest
+import pandas as pd
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -38,6 +39,36 @@ def test_bank_detection():
     assert extractor._detect_bank("Axis Bank Ltd transaction list") == "Axis Bank"
     assert extractor._detect_bank("Kotak Mahindra Bank e-stmt") == "Kotak Mahindra Bank"
     assert extractor._detect_bank("Unknown Bank Document") == "Bank Statement"
+
+
+def test_statement_period_is_normalized_to_transaction_date_format():
+    from backend.app.services.pdf_extractor import PDFExtractor
+
+    extractor = PDFExtractor()
+
+    assert extractor._extract_statement_period(
+        "Statement period: 01/09/2026 to 30/09/2026"
+    ) == ("2026-09-01", "2026-09-30")
+
+    assert extractor._extract_statement_period(
+        "Statement from 04-Aug-2026 to 03-Sep-2026"
+    ) == ("2026-08-04", "2026-09-03")
+
+
+def test_analytics_spending_excludes_internal_transfers_and_cash_withdrawals():
+    from backend.app.services.analytics_service import AnalyticsService
+
+    service = AnalyticsService(db=None)
+    df = pd.DataFrame([
+        {"cr_dr": "DR", "transaction_type": "expense", "amount": 100.0},
+        {"cr_dr": "DR", "transaction_type": "transfer", "amount": 500.0},
+        {"cr_dr": "DR", "transaction_type": "cash_withdrawal", "amount": 200.0},
+        {"cr_dr": "CR", "transaction_type": "income", "amount": 1000.0},
+    ])
+
+    spending = service._is_spending_transaction(df)
+    assert spending["amount"].tolist() == [100.0]
+
 
 def test_merchant_normalizer():
     normalizer = MerchantNormalizer()
