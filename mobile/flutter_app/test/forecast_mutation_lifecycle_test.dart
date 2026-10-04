@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import 'package:flutter_app/models/cash_expense_model.dart';
 import 'package:flutter_app/models/forecast_model.dart';
-import 'package:flutter_app/models/transaction_model.dart';
 import 'package:flutter_app/providers/cash_expense_provider.dart';
 import 'package:flutter_app/providers/forecast_provider.dart';
 import 'package:flutter_app/providers/transaction_provider.dart';
