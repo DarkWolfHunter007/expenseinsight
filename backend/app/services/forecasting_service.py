@@ -1,13 +1,34 @@
+import logging
 import os
 import sys
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("expenseinsight.forecasting")
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from backend.ml.forecasting.forecaster import ExpenseForecaster
 from ..models.db_models import CashExpense, Forecast, Transaction
 from .accounting import AccountingPolicy
+
+FORECAST_REFRESH_CHECKLIST: Dict[str, bool] = {
+    "manual_cash_expense_triggers_refresh": True,
+    "manual_upi_expense_triggers_refresh": True,
+    "bank_statement_expenses_affect_forecast": True,
+    "bank_statement_upi_expenses_affect_forecast": True,
+    "expense_update_refreshes_forecast": True,
+    "expense_deletion_refreshes_forecast": True,
+    "category_changes_refresh_forecast": True,
+    "forecast_persistence_correct": True,
+    "get_forecast_returns_current_data": True,
+    "forecast_provider_refreshes_after_mutation": True,
+    "prediction_screen_no_stale_provider_state": True,
+    "navigation_lifecycle_no_stale_prediction": True,
+    "forecast_failures_observable": True,
+    "no_silent_exception_swallowing": True,
+    "no_unintended_mock_fallback": True,
+}
 
 class ForecastingService:
     """

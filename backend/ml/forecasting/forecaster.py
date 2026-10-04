@@ -134,11 +134,19 @@ class ExpenseForecaster:
         if num_months == 0:
             return {
                 "status": "insufficient_data",
-                "message": "No transaction history available to generate forecast.",
-                "total_forecast": 0.0,
                 "confidence_level": "none",
-                "categories": {},
-                "explanation": "Upload at least 1 month of statements to see forecasts."
+                "status_message": "No transaction history available to generate forecast.",
+                "historical_months_count": 0,
+                "total_forecast": 0.0,
+                "lower_bound": 0.0,
+                "upper_bound": 0.0,
+                "next_7_days_forecast": 0.0,
+                "next_30_days_forecast": 0.0,
+                "category_forecasts": {},
+                "explanation": "Upload at least 1 month of statements or record cash expenses to see forecasts.",
+                "explanation_bullets": [
+                    "Upload bank statements or record cash expenses to view predictive spending forecasts."
+                ]
             }
 
         # Confidence status based on months
