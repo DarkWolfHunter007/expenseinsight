@@ -88,7 +88,42 @@ class Transaction(Base):
 
     @property
     def source_type(self) -> str:
+        """
+        Classify the payment rail represented by a bank-statement transaction.
+
+        A transaction can originate from a bank statement while still having been
+        executed through UPI. Derive the source from the statement narration so
+        existing databases do not require a schema migration.
+        """
+        description = (self.raw_description or "").upper()
+
+        upi_markers = (
+            "UPI/",
+            "UPI-",
+            "UPI ",
+            "/UPI/",
+            "@UPI",
+            "UPI ID",
+            "UPIID",
+            "VPA",
+            "PHONEPE",
+            "PHONE PE",
+            "GOOGLE PAY",
+            "GPAY",
+            "G PAY",
+            "PAYTM UPI",
+            "BHIM UPI",
+            "AMAZON PAY UPI",
+        )
+
+        if any(marker in description for marker in upi_markers):
+            return "upi"
         return "bank"
+
+    @property
+    def payment_method(self) -> str:
+        """Expose the same canonical payment-rail classification to API clients."""
+        return self.source_type
 
 
 class Merchant(Base):
