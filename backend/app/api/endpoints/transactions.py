@@ -82,7 +82,14 @@ def get_transactions(
         if transaction_type:
             query = query.filter(Transaction.transaction_type == transaction_type)
 
-        bank_items = [TransactionResponse.model_validate(t) for t in query.all()]
+        # A bank statement can contain both ordinary bank-rail transactions
+        # and UPI transactions. Apply the source filter after classifying each
+        # persisted transaction's payment rail.
+        for transaction in query.all():
+            transaction_source = getattr(transaction, "source_type", "bank")
+            if source in ("bank", "upi") and transaction_source != source:
+                continue
+            bank_items.append(TransactionResponse.model_validate(transaction))
 
     cash_items: List[TransactionResponse] = []
     if statement_id is None and needs_review is not True:
