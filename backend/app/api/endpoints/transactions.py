@@ -59,7 +59,7 @@ def get_transactions(
     """
     bank_items: List[TransactionResponse] = []
     # Statement bank transactions are included for 'all' and 'bank'
-    if source in ["all", "bank"] and transaction_type != "cash_expense":
+    if source in ["all", "bank", "upi"] and transaction_type != "cash_expense":
         query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
         if category and category.lower() != "all":
