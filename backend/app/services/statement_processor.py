@@ -236,6 +236,11 @@ class StatementProcessor:
             for cat_name, cnt in top_categories:
                 print(f"      * {cat_name:<20}: {cnt:>3} txns ({cnt / len(processed_transactions) * 100:.1f}%)")
 
+            source_counts = Counter(t.source_type for t in processed_transactions)
+            print(f"\n  {GREEN}[+]{RESET} Payment Source Breakdown (Canonical Classification):")
+            for src_name, cnt in source_counts.items():
+                print(f"      * {src_name.upper():<20}: {cnt:>3} txns ({cnt / len(processed_transactions) * 100:.1f}%)")
+
             # =========================================================================
             # STAGE 6: Spending Analysis & Recurring Subscription Detection
             # =========================================================================

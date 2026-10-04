@@ -2,6 +2,8 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from .accounting import AccountingPolicy
+
 class TransactionParser:
     """
     Robust multi-bank statement transaction parser conforming to PRD Sections 10, 43, 44.
@@ -150,7 +152,8 @@ class TransactionParser:
                     "cr_dr": cr_dr,
                     "balance": round(bal_val, 2) if bal_val is not None else None,
                     "reference_number": ref_num,
-                    "is_duplicate": is_duplicate
+                    "is_duplicate": is_duplicate,
+                    "source_type": AccountingPolicy.classify_source({"raw_description": raw_desc, "reference_number": ref_num})
                 })
 
         return parsed_transactions
@@ -226,7 +229,8 @@ class TransactionParser:
                 "cr_dr": cr_dr,
                 "balance": round(bal_val, 2) if bal_val is not None else None,
                 "reference_number": None,
-                "is_duplicate": is_duplicate
+                "is_duplicate": is_duplicate,
+                "source_type": AccountingPolicy.classify_source({"raw_description": raw_desc})
             })
 
         return transactions
@@ -363,7 +367,8 @@ class TransactionParser:
                 "cr_dr": cr_dr,
                 "balance": round(bal_val, 2) if bal_val is not None else None,
                 "reference_number": ref_num,
-                "is_duplicate": is_duplicate
+                "is_duplicate": is_duplicate,
+                "source_type": AccountingPolicy.classify_source({"raw_description": raw_desc, "reference_number": ref_num})
             })
 
         return parsed_transactions
@@ -420,7 +425,8 @@ class TransactionParser:
                 "cr_dr": cr_dr,
                 "balance": None,
                 "reference_number": ref_num,
-                "is_duplicate": is_duplicate
+                "is_duplicate": is_duplicate,
+                "source_type": AccountingPolicy.classify_source({"raw_description": raw_desc, "reference_number": ref_num})
             })
         return transactions
 
