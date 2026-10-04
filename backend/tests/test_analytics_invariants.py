@@ -456,3 +456,124 @@ class TestPhase13StatementDateBoundaryBugs:
         netflix = next(r for r in recurring_res if r["merchant"] == "Netflix")
         assert netflix["average_amount"] == 649.0
         assert netflix["occurrences"] == 3
+
+class TestUPIBankSourceSeparation:
+    """
+    Bank statements may contain both normal bank-rail transactions and UPI
+    payments. The transaction list must expose them through separate sources.
+    """
+
+    def test_bank_statement_transactions_are_classified_by_payment_rail(self):
+        headers, user_id = get_authenticated_user()
+        db = SessionLocal()
+
+        try:
+            stmt = Statement(
+                user_id=user_id,
+                file_name="mixed_rails.pdf",
+                bank_name="HDFC Bank",
+                statement_start="2026-09-01",
+                statement_end="2026-09-30",
+                processing_status="completed",
+                total_transactions=3,
+            )
+            db.add(stmt)
+            db.commit()
+            db.refresh(stmt)
+
+            db.add_all([
+                Transaction(
+                    user_id=user_id,
+                    statement_id=stmt.id,
+                    date="2026-09-05",
+                    raw_description="UPI/DR/NETFLIX/123456789012",
+                    merchant="Netflix",
+                    normalized_merchant="netflix",
+                    amount=649.0,
+                    cr_dr="DR",
+                    transaction_type="expense",
+                    category="Entertainment",
+                ),
+                Transaction(
+                    user_id=user_id,
+                    statement_id=stmt.id,
+                    date="2026-09-06",
+                    raw_description="POS/AMAZON/123456",
+                    merchant="Amazon",
+                    normalized_merchant="amazon",
+                    amount=1200.0,
+                    cr_dr="DR",
+                    transaction_type="expense",
+                    category="Shopping",
+                ),
+                Transaction(
+                    user_id=user_id,
+                    statement_id=stmt.id,
+                    date="2026-09-07",
+                    raw_description="PHONEPE UPI PAYMENT/STARBUCKS",
+                    merchant="Starbucks",
+                    normalized_merchant="starbucks",
+                    amount=350.0,
+                    cr_dr="DR",
+                    transaction_type="expense",
+                    category="Food",
+                ),
+            ])
+            db.commit()
+        finally:
+            db.close()
+
+        all_items = client.get("/transactions?source=all", headers=headers)
+        assert all_items.status_code == 200
+        assert len(all_items.json()) == 3
+
+        upi_items = client.get("/transactions?source=upi", headers=headers)
+        assert upi_items.status_code == 200
+        upi = upi_items.json()
+        assert len(upi) == 2
+        assert {item["merchant"] for item in upi} == {"Netflix", "Starbucks"}
+        assert all(item["source_type"] == "upi" for item in upi)
+        assert all(item["payment_method"] == "upi" for item in upi)
+
+        bank_items = client.get("/transactions?source=bank", headers=headers)
+        assert bank_items.status_code == 200
+        bank = bank_items.json()
+        assert len(bank) == 1
+        assert bank[0]["merchant"] == "Amazon"
+        assert bank[0]["source_type"] == "bank"
+        assert bank[0]["payment_method"] == "bank"
+
+    def test_upi_source_detection_handles_common_bank_statement_narrations(self):
+        headers, user_id = get_authenticated_user()
+        db = SessionLocal()
+
+        try:
+            stmt = Statement(
+                user_id=user_id,
+                file_name="upi_patterns.pdf",
+                bank_name="Test Bank",
+                statement_start="2026-09-01",
+                statement_end="2026-09-30",
+                processing_status="completed",
+                total_transactions=4,
+            )
+            db.add(stmt)
+            db.commit()
+            db.refresh(stmt)
+
+            txns = [
+                Transaction(user_id=user_id, statement_id=stmt.id, date="2026-09-01", raw_description="UPI/DR/ABC/123456789012", amount=10, cr_dr="DR", transaction_type="expense", category="Other"),
+                Transaction(user_id=user_id, statement_id=stmt.id, date="2026-09-02", raw_description="VPA merchant@upi", amount=20, cr_dr="DR", transaction_type="expense", category="Other"),
+                Transaction(user_id=user_id, statement_id=stmt.id, date="2026-09-03", raw_description="PhonePe payment", amount=30, cr_dr="DR", transaction_type="expense", category="Other"),
+                Transaction(user_id=user_id, statement_id=stmt.id, date="2026-09-04", raw_description="IMPS/P2A/merchant", amount=40, cr_dr="DR", transaction_type="expense", category="Other"),
+            ]
+            db.add_all(txns)
+            db.commit()
+
+            assert txns[0].source_type == "upi"
+            assert txns[1].source_type == "upi"
+            assert txns[2].source_type == "upi"
+            assert txns[3].source_type == "bank"
+        finally:
+            db.close()
+\n
