@@ -8,8 +8,10 @@ import '../models/analytics_model.dart';
 import '../models/forecast_model.dart';
 import '../models/transaction_model.dart';
 import '../providers/analytics_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/cash_expense_provider.dart';
 import '../providers/forecast_provider.dart';
+import '../providers/statement_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/add_edit_cash_expense_dialog.dart';
 import '../widgets/bank_statement_header.dart';
@@ -162,6 +164,20 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('ExpenseInsight'),
         actions: [
+          Consumer<AuthProvider?>(
+            builder: (context, auth, _) {
+              if (auth == null) return const SizedBox.shrink();
+              final isIdentified = auth.isAuthenticated && !auth.user!.isGuest;
+              return IconButton(
+                onPressed: () => _showIdentityDialog(context),
+                icon: Icon(
+                  isIdentified ? Icons.account_circle_rounded : Icons.account_circle_outlined,
+                  color: isIdentified ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                ),
+                tooltip: isIdentified ? 'Identified: ${auth.user!.email}' : 'Identify with Email',
+              );
+            },
+          ),
           IconButton(
             onPressed: () => AddEditCashExpenseDialog.show(context),
             icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF10B981)),
@@ -194,6 +210,19 @@ class DashboardScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Guest identity reminder banner
+              Consumer<AuthProvider?>(
+                builder: (context, auth, _) {
+                  if (auth == null) return const SizedBox.shrink();
+                  final isGuest = !auth.isAuthenticated || auth.user!.isGuest;
+                  if (!isGuest) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildGuestBanner(context, isDark),
+                  );
+                },
+              ),
+
               // 0. Active Bank Statement Context (Compact)
               CompactStatementContextCard(
                 bankName: summary?.bankName ?? 'Bank Statement',
@@ -272,6 +301,28 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('ExpenseInsight Dashboard'),
         actions: [
+          Consumer<AuthProvider?>(
+            builder: (context, auth, _) {
+              if (auth == null) return const SizedBox.shrink();
+              final isIdentified = auth.isAuthenticated && !auth.user!.isGuest;
+              return TextButton.icon(
+                onPressed: () => _showIdentityDialog(context),
+                icon: Icon(
+                  isIdentified ? Icons.check_circle_rounded : Icons.mail_outline_rounded,
+                  size: 16,
+                  color: isIdentified ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                ),
+                label: Text(
+                  isIdentified ? auth.user!.email : 'Identify with Email',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isIdentified ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             onPressed: () => AddEditCashExpenseDialog.show(context),
             icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF10B981)),
@@ -321,6 +372,19 @@ class DashboardScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Guest identity reminder banner
+              Consumer<AuthProvider?>(
+                builder: (context, auth, _) {
+                  if (auth == null) return const SizedBox.shrink();
+                  final isGuest = !auth.isAuthenticated || auth.user!.isGuest;
+                  if (!isGuest) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _buildGuestBanner(context, isDark),
+                  );
+                },
+              ),
+
               BankStatementHeader(
                 bankName: summary?.bankName ?? 'Bank Statement',
                 statementPeriod: summary?.statementPeriod,
@@ -956,6 +1020,168 @@ class DashboardScreen extends StatelessWidget {
           style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
         ),
       ],
+    );
+  }
+
+  Widget _buildGuestBanner(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 20, color: Color(0xFFF59E0B)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Temporary Guest Session',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                Text(
+                  'Identify with your email to save your transactions & predictions.',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => _showIdentityDialog(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Identify', style: TextStyle(fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showIdentityDialog(BuildContext context) {
+    final auth = Provider.of<AuthProvider?>(context, listen: false);
+    if (auth == null) return;
+    final emailController = TextEditingController(
+      text: (auth.isAuthenticated && !auth.user!.isGuest) ? auth.user!.email : '',
+    );
+    String? localError;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            final isDark = Theme.of(dialogCtx).brightness == Brightness.dark;
+            final isIdentified = auth.isAuthenticated && !auth.user!.isGuest;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.account_circle_rounded, color: Color(0xFF10B981)),
+                  const SizedBox(width: 8),
+                  Text(
+                    isIdentified ? 'Current Identity' : 'Identify Yourself',
+                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isIdentified
+                        ? 'You are identified as ${auth.user!.email}. You can switch accounts by entering another email.'
+                        : 'Enter your email to persist and restore all your transactions, cash expenses, and forecasts across devices.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'name@example.com',
+                      prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  if (localError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      localError!,
+                      style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    final email = emailController.text.trim().toLowerCase();
+                    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+                      setDialogState(() {
+                        localError = 'Please enter a valid email address.';
+                      });
+                      return;
+                    }
+                    Navigator.pop(ctx);
+                    final success = await auth.identifyWithEmail(email);
+                    if (context.mounted && success) {
+                      await Future.wait([
+                        Provider.of<StatementProvider>(context, listen: false).fetchStatements(),
+                        Provider.of<TransactionProvider>(context, listen: false).fetchTransactions(),
+                        Provider.of<CashExpenseProvider>(context, listen: false).fetchCashExpenses(),
+                        Provider.of<AnalyticsProvider>(context, listen: false).fetchAnalytics(),
+                        Provider.of<ForecastProvider>(context, listen: false).fetchForecast(),
+                      ]);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Identified as $email! Financial data synced.'),
+                          backgroundColor: const Color(0xFF10B981),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text(isIdentified ? 'Switch' : 'Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

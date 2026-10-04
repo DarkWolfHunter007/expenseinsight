@@ -7,11 +7,13 @@ import 'package:flutter_app/providers/analytics_provider.dart';
 import 'package:flutter_app/providers/forecast_provider.dart';
 import 'package:flutter_app/providers/model_provider.dart';
 import 'package:flutter_app/providers/statement_provider.dart';
+import 'package:flutter_app/providers/auth_provider.dart';
 import 'package:flutter_app/screens/main_navigation_screen.dart';
 
 Widget createNavigationApp() {
   return MultiProvider(
     providers: [
+      ChangeNotifierProvider(create: (_) => AuthProvider()),
       ChangeNotifierProvider(create: (_) => StatementProvider()),
       ChangeNotifierProvider(create: (_) => TransactionProvider()),
       ChangeNotifierProvider(create: (_) => CashExpenseProvider()),

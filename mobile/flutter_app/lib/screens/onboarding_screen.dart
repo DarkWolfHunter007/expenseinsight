@@ -176,39 +176,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 24),
 
-                  // Feature Cards
-                  _featureCard(
-                    icon: Icons.picture_as_pdf_rounded,
-                    title: 'Automated PDF Parsing',
-                    desc: 'Upload 6-month statements. Extracts transactions & balances automatically.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 12),
-                  _featureCard(
-                    icon: Icons.storefront_rounded,
-                    title: 'Merchant Normalization',
-                    desc: 'Cleans UPI/POS clutter into canonical merchant names like Swiggy & Uber.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 12),
-                  _featureCard(
-                    icon: Icons.psychology_rounded,
-                    title: 'ML Expense Categorization',
-                    desc: 'TF-IDF NLP model with confidence scores & uncertainty review deck.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 12),
-                  _featureCard(
-                    icon: Icons.query_stats_rounded,
-                    title: 'Predictive Forecasting',
-                    desc: 'Time-series forecasting with statistical confidence intervals.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 36),
-
-                  // Email Identity Section
+                  // Email Identity Section (Primary Action)
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
                       final isIdentified = auth.isAuthenticated && !auth.user!.isGuest;
@@ -294,30 +264,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                key: const Key('continue_with_email_button'),
-                                onPressed: _isLoading ? null : () => _continueWithEmail(),
-                                icon: _isLoading
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : const Icon(Icons.arrow_forward_rounded, size: 18),
-                                label: Text(_isLoading ? 'Identifying...' : 'Continue with Email'),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
+                              key: const Key('continue_with_email_button'),
+                              onPressed: _isLoading ? null : () => _continueWithEmail(),
+                              icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Icon(Icons.arrow_forward_rounded, size: 18),
+                              label: Text(_isLoading ? 'Identifying...' : 'Continue with Email'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
+                            ),
                             ),
                           ],
                         ),
                       );
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(child: Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
@@ -336,7 +306,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       Expanded(child: Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -349,6 +319,55 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Feature Cards
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'CORE CAPABILITIES',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _featureCard(
+                    icon: Icons.picture_as_pdf_rounded,
+                    title: 'Automated PDF Parsing',
+                    desc: 'Upload 6-month statements. Extracts transactions & balances automatically.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 12),
+                  _featureCard(
+                    icon: Icons.storefront_rounded,
+                    title: 'Merchant Normalization',
+                    desc: 'Cleans UPI/POS clutter into canonical merchant names like Swiggy & Uber.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 12),
+                  _featureCard(
+                    icon: Icons.psychology_rounded,
+                    title: 'ML Expense Categorization',
+                    desc: 'TF-IDF NLP model with confidence scores & uncertainty review deck.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 12),
+                  _featureCard(
+                    icon: Icons.query_stats_rounded,
+                    title: 'Predictive Forecasting',
+                    desc: 'Time-series forecasting with statistical confidence intervals.',
+                    isDark: isDark,
                   ),
                 ],
               ),
