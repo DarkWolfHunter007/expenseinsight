@@ -28,9 +28,12 @@ router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password, hashed_password):
-    if not hashed_password:
+    if not hashed_password or hashed_password.endswith("_nopassword") or not hashed_password.startswith("$2"):
         return False
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        return False
 
 def get_password_hash(password):
     return pwd_context.hash(password)
@@ -115,7 +118,7 @@ def identify(
         else:
             new_user = User(
                 email=normalized_email,
-                hashed_password=None,
+                hashed_password="identity_nopassword",
                 is_guest=False
             )
             db.add(new_user)

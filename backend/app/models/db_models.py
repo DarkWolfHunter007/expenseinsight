@@ -22,7 +22,7 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     email = Column(String(255, collation="NOCASE"), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=True)
+    hashed_password = Column(String(255), default="identity_nopassword", nullable=False)
     is_guest = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
