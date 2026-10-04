@@ -116,10 +116,17 @@ class ApiService {
         final List<dynamic> list = json.decode(response.body);
         return list.map((e) => StatementModel.fromJson(e)).toList();
       }
+      if (isUsingMockFallback) {
+        return MockDataService.mockStatements;
+      }
+      throw Exception('Failed to list statements (HTTP ${response.statusCode})');
     } catch (e) {
       debugPrint('API Error (listStatements): $e');
+      if (isUsingMockFallback) {
+        return MockDataService.mockStatements;
+      }
+      rethrow;
     }
-    return MockDataService.mockStatements;
   }
 
   Future<StatementModel?> seedSampleStatement({String bank = 'HDFC Bank'}) async {
@@ -231,10 +238,17 @@ class ApiService {
         final List<dynamic> list = json.decode(response.body);
         return list.map((e) => TransactionModel.fromJson(e)).toList();
       }
+      if (isUsingMockFallback) {
+        return MockDataService.mockTransactions;
+      }
+      throw Exception('Failed to load transactions (HTTP ${response.statusCode})');
     } catch (e) {
       debugPrint('API Error (getTransactions): $e');
+      if (isUsingMockFallback) {
+        return MockDataService.mockTransactions;
+      }
+      rethrow;
     }
-    return MockDataService.mockTransactions;
   }
 
   Future<List<UncertainReviewModel>> getUncertainTransactions() async {
@@ -294,10 +308,17 @@ class ApiService {
         final List<dynamic> list = json.decode(response.body);
         return list.map((e) => CashExpenseModel.fromJson(e)).toList();
       }
+      if (isUsingMockFallback) {
+        return MockDataService.mockCashExpenses;
+      }
+      throw Exception('Failed to load cash expenses (HTTP ${response.statusCode})');
     } catch (e) {
       debugPrint('API Error (getCashExpenses): $e');
+      if (isUsingMockFallback) {
+        return MockDataService.mockCashExpenses;
+      }
+      rethrow;
     }
-    return MockDataService.mockCashExpenses;
   }
 
   Future<CashExpenseModel?> createCashExpense({
@@ -366,31 +387,55 @@ class ApiService {
 
   // ----------------- Analytics -----------------
 
-  Future<AnalyticsSummaryModel> getAnalyticsSummary() async {
+  Future<AnalyticsSummaryModel> getAnalyticsSummary({String? startDate, String? endDate}) async {
     try {
-      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.analyticsSummary}');
-      final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 5));
+      final queryParams = <String, String>{};
+      if (startDate != null && startDate.isNotEmpty) queryParams['start_date'] = startDate;
+      if (endDate != null && endDate.isNotEmpty) queryParams['end_date'] = endDate;
+
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.analyticsSummary}')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         return AnalyticsSummaryModel.fromJson(json.decode(response.body));
       }
+      if (isUsingMockFallback) {
+        return MockDataService.mockAnalyticsSummary;
+      }
+      throw Exception('Failed to load analytics summary (HTTP ${response.statusCode})');
     } catch (e) {
       debugPrint('API Error (getAnalyticsSummary): $e');
+      if (isUsingMockFallback) {
+        return MockDataService.mockAnalyticsSummary;
+      }
+      rethrow;
     }
-    return MockDataService.mockAnalyticsSummary;
   }
 
-  Future<List<MonthlySpendingItem>> getMonthlySpending() async {
+  Future<List<MonthlySpendingItem>> getMonthlySpending({String? startDate, String? endDate}) async {
     try {
-      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.monthlySpending}');
-      final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 5));
+      final queryParams = <String, String>{};
+      if (startDate != null && startDate.isNotEmpty) queryParams['start_date'] = startDate;
+      if (endDate != null && endDate.isNotEmpty) queryParams['end_date'] = endDate;
+
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.monthlySpending}')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final List<dynamic> list = json.decode(response.body);
         return list.map((e) => MonthlySpendingItem.fromJson(e)).toList();
       }
+      if (isUsingMockFallback) {
+        return MockDataService.mockMonthlySpending;
+      }
+      throw Exception('Failed to load monthly spending (HTTP ${response.statusCode})');
     } catch (e) {
       debugPrint('API Error (getMonthlySpending): $e');
+      if (isUsingMockFallback) {
+        return MockDataService.mockMonthlySpending;
+      }
+      rethrow;
     }
-    return MockDataService.mockMonthlySpending;
   }
 
   // ----------------- Forecast -----------------
@@ -402,10 +447,17 @@ class ApiService {
       if (response.statusCode == 200) {
         return ForecastModel.fromJson(json.decode(response.body));
       }
+      if (isUsingMockFallback) {
+        return MockDataService.mockForecast;
+      }
+      throw Exception('Failed to load forecast (HTTP ${response.statusCode})');
     } catch (e) {
       debugPrint('API Error (getForecast): $e');
+      if (isUsingMockFallback) {
+        return MockDataService.mockForecast;
+      }
+      rethrow;
     }
-    return MockDataService.mockForecast;
   }
 
   // ----------------- Model & Benchmark -----------------

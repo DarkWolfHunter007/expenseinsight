@@ -14,16 +14,16 @@ class AnalyticsProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  Future<void> fetchAnalytics() async {
+  Future<void> fetchAnalytics({String? startDate, String? endDate}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _summary = await _api.getAnalyticsSummary();
-      _monthlySpending = await _api.getMonthlySpending();
+      _summary = await _api.getAnalyticsSummary(startDate: startDate, endDate: endDate);
+      _monthlySpending = await _api.getMonthlySpending(startDate: startDate, endDate: endDate);
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
       _isLoading = false;
       notifyListeners();

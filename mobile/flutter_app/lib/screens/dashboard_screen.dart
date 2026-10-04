@@ -55,6 +55,54 @@ class DashboardScreen extends StatelessWidget {
           );
         }
 
+        if (analyticsProv.errorMessage != null && summary == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('ExpenseInsight')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off_rounded, color: Colors.redAccent, size: 56),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load analytics',
+                      style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      analyticsProv.errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        analyticsProv.fetchAnalytics();
+                        forecastProv.fetchForecast();
+                        txnProv.fetchTransactions();
+                        Provider.of<CashExpenseProvider>(context, listen: false).fetchCashExpenses();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         return LayoutBuilder(
           builder: (context, constraints) {
             final isDesktop = constraints.maxWidth > 800;
