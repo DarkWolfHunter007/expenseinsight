@@ -185,6 +185,7 @@ def get_transaction(
 
 
 @router.patch("/{transaction_id}/category", response_model=TransactionResponse)
+@router.put("/{transaction_id}/category", response_model=TransactionResponse)
 def update_transaction_category(
     transaction_id: str,
     payload: TransactionUpdateCategory,
