@@ -204,10 +204,16 @@ class AccountingPolicy:
         if record is None:
             return "bank"
 
-        # 1. Check explicit payment_method (present on CashExpense or manual entries)
-        pm = str(_extract_field(record, "payment_method", "") or "").strip().lower()
-        if pm in ("bank", "upi", "cash"):
-            return pm
+        # 1. Check explicit payment_method (present on CashExpense or manual dict entries)
+        if isinstance(record, dict):
+            pm = str(record.get("payment_method") or "").strip().lower()
+            if pm in ("bank", "upi", "cash"):
+                return pm
+        elif hasattr(record, "__tablename__") and record.__tablename__ == "cash_expenses":
+            pm = str(getattr(record, "payment_method", "") or "").strip().lower()
+            if pm in ("bank", "upi", "cash"):
+                return pm
+
 
         # 2. Check CashExpense transaction_type / source indicators
         txn_type = str(_extract_field(record, "transaction_type", "") or "").strip().lower()

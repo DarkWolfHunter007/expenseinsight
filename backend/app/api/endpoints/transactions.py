@@ -10,7 +10,7 @@ from ..deps import get_current_user
 router = APIRouter()
 
 def _format_cash_to_transaction_response(c: CashExpense) -> TransactionResponse:
-    pm = getattr(c, "effective_payment_method", "cash")
+    pm = getattr(c, "source_type", getattr(c, "effective_payment_method", "cash"))
     clean_desc = getattr(c, "clean_description", c.description)
     merchant_name = "Bank Transfer" if pm == "bank" else ("UPI Payment" if pm == "upi" else "Cash Payment")
     return TransactionResponse(
@@ -57,8 +57,9 @@ def get_transactions(
     Retrieves user transactions with filtering, search, sorting, and pagination (PRD Section 33).
     Reflects bank transactions and manually entered expenses across Bank, UPI, and Cash.
     """
-    bank_items: List[TransactionResponse] = []
-    # Statement bank transactions are included for 'all' and 'bank'
+    statement_items: List[TransactionResponse] = []
+    # A bank statement is the SOURCE DOCUMENT, not the payment source.
+    # Transactions extracted from it can be bank or upi.
     if source in ["all", "bank", "upi"] and transaction_type != "cash_expense":
         query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
@@ -82,16 +83,12 @@ def get_transactions(
         if transaction_type:
             query = query.filter(Transaction.transaction_type == transaction_type)
 
-        # A bank statement can contain both ordinary bank-rail transactions
-        # and UPI transactions. Apply the source filter after classifying each
-        # persisted transaction's payment rail.
-        for transaction in query.all():
-            transaction_source = getattr(transaction, "source_type", "bank")
-            if source in ("bank", "upi") and transaction_source != source:
-                continue
-            bank_items.append(TransactionResponse.model_validate(transaction))
+        for t in query.all():
+            st = t.source_type  # Evaluates canonical source ('upi' or 'bank')
+            if source == "all" or source == st:
+                statement_items.append(TransactionResponse.model_validate(t))
 
-    cash_items: List[TransactionResponse] = []
+    cash_and_manual_items: List[TransactionResponse] = []
     if statement_id is None and needs_review is not True:
         cash_query = db.query(CashExpense).filter(CashExpense.user_id == current_user.id)
 
@@ -106,13 +103,13 @@ def get_transactions(
             )
 
         for c in cash_query.all():
-            pm = c.effective_payment_method
+            st = getattr(c, "source_type", getattr(c, "effective_payment_method", "cash"))
             # Match source filter
-            if source == "all" or source == pm:
-                if transaction_type is None or transaction_type in ["expense", "cash_expense", f"{pm}_expense"]:
-                    cash_items.append(_format_cash_to_transaction_response(c))
+            if source == "all" or source == st:
+                if transaction_type is None or transaction_type in ["expense", "cash_expense", f"{st}_expense"]:
+                    cash_and_manual_items.append(_format_cash_to_transaction_response(c))
 
-    combined = bank_items + cash_items
+    combined = statement_items + cash_and_manual_items
 
     # Sorting
     reverse = (order == "desc")
