@@ -26,6 +26,20 @@ if DATABASE_URL.startswith("sqlite"):
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        try:
+            cursor.execute("PRAGMA table_info(users)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if cols and "updated_at" not in cols:
+                cursor.execute("ALTER TABLE users ADD COLUMN updated_at DATETIME")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA table_info(cash_expenses)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if cols and "payment_method" not in cols:
+                cursor.execute("ALTER TABLE cash_expenses ADD COLUMN payment_method VARCHAR(20) DEFAULT 'cash'")
+        except Exception:
+            pass
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
