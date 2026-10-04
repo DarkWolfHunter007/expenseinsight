@@ -65,6 +65,56 @@ class TransactionModel {
     return 'Low';
   }
 
+  TransactionModel copyWith({
+    String? id,
+    String? userId,
+    String? statementId,
+    String? date,
+    String? rawDescription,
+    String? cleanDescription,
+    String? merchant,
+    String? normalizedMerchant,
+    double? amount,
+    String? currency,
+    String? transactionType,
+    String? crDr,
+    double? balance,
+    String? referenceNumber,
+    String? category,
+    double? categoryConfidence,
+    String? categorySource,
+    bool? needsReview,
+    bool? isDuplicate,
+    DateTime? createdAt,
+    String? sourceType,
+    String? paymentMethod,
+  }) {
+    return TransactionModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      statementId: statementId ?? this.statementId,
+      date: date ?? this.date,
+      rawDescription: rawDescription ?? this.rawDescription,
+      cleanDescription: cleanDescription ?? this.cleanDescription,
+      merchant: merchant ?? this.merchant,
+      normalizedMerchant: normalizedMerchant ?? this.normalizedMerchant,
+      amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
+      transactionType: transactionType ?? this.transactionType,
+      crDr: crDr ?? this.crDr,
+      balance: balance ?? this.balance,
+      referenceNumber: referenceNumber ?? this.referenceNumber,
+      category: category ?? this.category,
+      categoryConfidence: categoryConfidence ?? this.categoryConfidence,
+      categorySource: categorySource ?? this.categorySource,
+      needsReview: needsReview ?? this.needsReview,
+      isDuplicate: isDuplicate ?? this.isDuplicate,
+      createdAt: createdAt ?? this.createdAt,
+      sourceType: sourceType ?? this.sourceType,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+    );
+  }
+
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     return TransactionModel(
       id: json['id'] ?? '',

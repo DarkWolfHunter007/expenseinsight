@@ -260,6 +260,14 @@ class TransactionTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     _detailRow('Entry Mode:', 'Manually Recorded', isDark),
                   ] else ...[
+                    _detailRow(
+                      'Payment Source:',
+                      transaction.isUpi
+                          ? 'UPI (Bank Statement)'
+                          : (transaction.isCash ? 'Cash' : 'Bank Account (NEFT/IMPS/Card)'),
+                      isDark,
+                    ),
+                    const SizedBox(height: 6),
                     _detailRow('Raw Statement Text:', transaction.rawDescription, isDark),
                     const SizedBox(height: 6),
                     _detailRow('Normalized Merchant:', transaction.normalizedMerchant, isDark),

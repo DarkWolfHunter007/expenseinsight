@@ -112,34 +112,29 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   Future<void> updateCategory(String transactionId, String newCategory, {bool applyToFuture = true}) async {
-    // Optimistic UI update
+    // Optimistic UI update preserving canonical sourceType and paymentMethod
     final index = _transactions.indexWhere((t) => t.id == transactionId);
     if (index != -1) {
       final old = _transactions[index];
-      _transactions[index] = TransactionModel(
-        id: old.id,
-        userId: old.userId,
-        statementId: old.statementId,
-        date: old.date,
-        rawDescription: old.rawDescription,
-        cleanDescription: old.cleanDescription,
-        merchant: old.merchant,
-        normalizedMerchant: old.normalizedMerchant,
-        amount: old.amount,
-        currency: old.currency,
-        transactionType: old.transactionType,
-        crDr: old.crDr,
-        balance: old.balance,
-        referenceNumber: old.referenceNumber,
+      _transactions[index] = old.copyWith(
         category: newCategory,
         categoryConfidence: 1.0,
         categorySource: 'manual_user',
         needsReview: false,
-        isDuplicate: old.isDuplicate,
-        createdAt: old.createdAt,
-        sourceType: old.sourceType,
-        paymentMethod: old.paymentMethod,
       );
+      // If applyToFuture is true, also update similar transactions for the same merchant
+      if (applyToFuture && old.normalizedMerchant.isNotEmpty) {
+        for (int i = 0; i < _transactions.length; i++) {
+          if (i != index && _transactions[i].normalizedMerchant == old.normalizedMerchant) {
+            _transactions[i] = _transactions[i].copyWith(
+              category: newCategory,
+              categoryConfidence: 0.95,
+              categorySource: 'learned_feedback',
+              needsReview: false,
+            );
+          }
+        }
+      }
       // Remove from uncertain deck if present
       _uncertainTransactions.removeWhere((u) => u.transactionId == transactionId);
       notifyListeners();
