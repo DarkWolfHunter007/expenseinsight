@@ -83,9 +83,11 @@ class BankStatementHeader extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            branding.name.endsWith('Bank') || branding.name.endsWith('Statement')
+                            branding.name.endsWith('Statement')
                                 ? branding.name
-                                : '${branding.name} Bank Statement',
+                                : (branding.name.endsWith('Bank')
+                                    ? '${branding.name} Statement'
+                                    : '${branding.name} Bank Statement'),
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
