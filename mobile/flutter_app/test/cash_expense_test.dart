@@ -130,6 +130,11 @@ class FakeApiService extends Fake implements ApiService {
   Future<List<UncertainReviewModel>> getUncertainTransactions() async {
     return [];
   }
+
+  @override
+  Future<bool> updateTransactionCategory(String transactionId, String newCategory, {bool applyToFuture = true}) async {
+    return true;
+  }
 }
 
 void main() {
@@ -531,6 +536,46 @@ void main() {
       provider.setSourceFilter('All');
       await Future.delayed(Duration.zero);
       expect(provider.transactions.length, 3);
+    });
+
+    test('TransactionProvider updateCategory preserves canonical sourceType and paymentMethod', () async {
+      final fakeApi = FakeApiService();
+      final upiTx = TransactionModel(
+        id: 't-upi-statement',
+        userId: 'u-1',
+        statementId: 'stmt-1',
+        date: '2026-09-21',
+        rawDescription: 'UPI/DR/123/SWIGGY',
+        merchant: 'Swiggy',
+        normalizedMerchant: 'swiggy',
+        amount: 350.0,
+        currency: 'INR',
+        transactionType: 'expense',
+        crDr: 'DR',
+        category: 'Other',
+        categoryConfidence: 0.6,
+        categorySource: 'ml',
+        needsReview: true,
+        isDuplicate: false,
+        createdAt: DateTime.now(),
+        sourceType: 'upi',
+        paymentMethod: 'upi',
+      );
+      fakeApi.fakeTransactions = [upiTx];
+      final provider = TransactionProvider(apiService: fakeApi);
+      await provider.fetchTransactions();
+
+      expect(provider.transactions.first.sourceType, 'upi');
+      expect(provider.transactions.first.isUpi, isTrue);
+
+      await provider.updateCategory('t-upi-statement', 'Food');
+
+      final updated = provider.rawTransactions.firstWhere((t) => t.id == 't-upi-statement');
+      expect(updated.category, 'Food');
+      expect(updated.sourceType, 'upi', reason: 'CRITICAL: Category update must preserve sourceType!');
+      expect(updated.paymentMethod, 'upi');
+      expect(updated.isUpi, isTrue);
+      expect(updated.isBank, isFalse);
     });
   });
 }
