@@ -32,19 +32,38 @@ def get_current_user_optional(
 ) -> Optional[User]:
     """
     Retrieves the current authenticated user if a valid bearer token is supplied.
-    Returns None if no token is provided or if token is invalid.
+    Returns None ONLY if no token is provided.
+    Raises HTTPException(401) if an invalid or expired token is provided or if user no longer exists.
     Does NOT fall back to the default demo user.
     """
-    if auth_credentials:
-        token = auth_credentials.credentials
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id: str = payload.get("sub")
-            if user_id:
-                return db.query(User).filter(User.id == user_id).first()
-        except jwt.PyJWTError:
-            pass
-    return None
+    if not auth_credentials:
+        return None
+
+    token = auth_credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
 
 def get_current_user(
     auth_credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
@@ -52,13 +71,14 @@ def get_current_user(
 ) -> User:
     """
     Retrieves the current authenticated user.
+    If a Bearer token is provided, strictly validates it (raises 401 on invalid/expired/not found).
     If no token is provided, creates or retrieves the default Demo/Guest user for seamless evaluation.
     """
     user = get_current_user_optional(auth_credentials, db)
     if user:
         return user
 
-    # Default Guest/Demo fallback user for evaluator convenience
+    # Default Guest/Demo fallback user for evaluator convenience ONLY when NO token is provided
     guest_user = db.query(User).filter(User.email == "demo@expenseinsight.app").first()
     if not guest_user:
         guest_user = User(

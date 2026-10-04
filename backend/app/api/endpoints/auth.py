@@ -74,28 +74,35 @@ def identify(
         # If calling from an ephemeral guest session that is distinct from existing user,
         # safely migrate guest-created records into the existing user account (Phase 8)
         if is_ephemeral_guest and calling_user.id != existing_user.id:
-            # Reassign statements
-            db.query(Statement).filter(Statement.user_id == calling_user.id).update(
-                {Statement.user_id: existing_user.id}, synchronize_session=False
-            )
-            # Reassign transactions
-            db.query(Transaction).filter(Transaction.user_id == calling_user.id).update(
-                {Transaction.user_id: existing_user.id}, synchronize_session=False
-            )
-            # Reassign cash expenses
-            db.query(CashExpense).filter(CashExpense.user_id == calling_user.id).update(
-                {CashExpense.user_id: existing_user.id}, synchronize_session=False
-            )
-            # Reassign category corrections
-            db.query(CategoryCorrection).filter(CategoryCorrection.user_id == calling_user.id).update(
-                {CategoryCorrection.user_id: existing_user.id}, synchronize_session=False
-            )
-            # Remove guest forecast
-            db.query(Forecast).filter(Forecast.user_id == calling_user.id).delete(synchronize_session=False)
-            # Remove ephemeral guest record
-            db.delete(calling_user)
-            db.commit()
-            db.refresh(existing_user)
+            try:
+                # Reassign statements
+                db.query(Statement).filter(Statement.user_id == calling_user.id).update(
+                    {Statement.user_id: existing_user.id}, synchronize_session=False
+                )
+                # Reassign transactions
+                db.query(Transaction).filter(Transaction.user_id == calling_user.id).update(
+                    {Transaction.user_id: existing_user.id}, synchronize_session=False
+                )
+                # Reassign cash expenses
+                db.query(CashExpense).filter(CashExpense.user_id == calling_user.id).update(
+                    {CashExpense.user_id: existing_user.id}, synchronize_session=False
+                )
+                # Reassign category corrections
+                db.query(CategoryCorrection).filter(CategoryCorrection.user_id == calling_user.id).update(
+                    {CategoryCorrection.user_id: existing_user.id}, synchronize_session=False
+                )
+                # Remove guest forecast
+                db.query(Forecast).filter(Forecast.user_id == calling_user.id).delete(synchronize_session=False)
+                # Remove ephemeral guest record
+                db.delete(calling_user)
+                db.commit()
+                db.refresh(existing_user)
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to migrate guest session: {str(e)}"
+                )
 
             # Trigger safe observable forecast recalculation for existing user
             from ...services.forecasting_service import ForecastingService

@@ -347,3 +347,116 @@ def test_multi_device_retrieves_identical_data():
     assert len(dev2_expenses) == 1
     assert dev2_expenses[0]["amount"] == 1800.0
     assert dev2_expenses[0]["category"] == "Shopping"
+
+
+def test_negative_authorization_direct_statement_and_transaction_lookups():
+    """Phase 10: Direct record lookups for foreign user records return 404."""
+    email_a = f"alice_neg_{uuid.uuid4().hex[:8]}@example.com"
+    email_b = f"bob_neg_{uuid.uuid4().hex[:8]}@example.com"
+
+    token_a = client.post("/auth/identify", json={"email": email_a}).json()["access_token"]
+    token_b = client.post("/auth/identify", json={"email": email_b}).json()["access_token"]
+
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    # User A creates a transaction directly in DB for testing direct lookups
+    db = SessionLocal()
+    user_a = db.query(User).filter(User.email == email_a).first()
+    stmt_a = Statement(
+        user_id=user_a.id,
+        file_name="alice_stmt.pdf",
+        bank_name="HDFC",
+        account_number="1234",
+        statement_start="2026-01-01",
+        statement_end="2026-01-31",
+        processing_status="completed"
+    )
+    db.add(stmt_a)
+    db.commit()
+    db.refresh(stmt_a)
+
+    txn_a = Transaction(
+        user_id=user_a.id,
+        statement_id=stmt_a.id,
+        date="2026-01-15",
+        raw_description="UPI/DR/SWIGGY/998877",
+        amount=650.0,
+        transaction_type="expense",
+        category="Food",
+        category_confidence=0.9,
+        category_source="rules"
+    )
+    db.add(txn_a)
+    db.commit()
+    db.refresh(txn_a)
+    stmt_a_id = stmt_a.id
+    txn_a_id = txn_a.id
+    db.close()
+
+    # User B attempts to read User A's statement -> 404
+    stmt_res = client.get(f"/statements/{stmt_a_id}", headers=headers_b)
+    assert stmt_res.status_code == 404
+
+    # User B attempts to read User A's statement status -> 404
+    status_res = client.get(f"/statements/{stmt_a_id}/status", headers=headers_b)
+    assert status_res.status_code == 404
+
+    # User B attempts to read User A's transaction -> 404
+    txn_res = client.get(f"/transactions/{txn_a_id}", headers=headers_b)
+    assert txn_res.status_code == 404
+
+    # User B attempts to update User A's transaction category -> 404
+    update_res = client.patch(
+        f"/transactions/{txn_a_id}/category",
+        json={"category": "Groceries"},
+        headers=headers_b
+    )
+    assert update_res.status_code == 404
+
+    # User B attempts to delete User A's transaction -> 404
+    del_res = client.delete(f"/transactions/{txn_a_id}", headers=headers_b)
+    assert del_res.status_code == 404
+
+
+def test_token_validation_and_rejections():
+    """Phase 10 & 15: Invalid, expired, and non-existent user tokens return 401 Unauthorized."""
+    import jwt
+    from datetime import datetime, timedelta
+    from backend.app.api.deps import SECRET_KEY, ALGORITHM
+
+    # 1. Invalid signature / forged token
+    forged_token = jwt.encode({"sub": "random-uuid-123"}, "wrong-secret-key-that-is-at-least-32-bytes-long!!!", algorithm="HS256")
+    res1 = client.get("/auth/me", headers={"Authorization": f"Bearer {forged_token}"})
+    assert res1.status_code == 401
+    assert "Could not validate credentials" in res1.json()["detail"]
+
+    # 2. Expired token
+    expired_payload = {
+        "sub": "some-user-id",
+        "exp": datetime.utcnow() - timedelta(hours=1)
+    }
+    expired_token = jwt.encode(expired_payload, SECRET_KEY, algorithm=ALGORITHM)
+    res2 = client.get("/auth/me", headers={"Authorization": f"Bearer {expired_token}"})
+    assert res2.status_code == 401
+
+    # 3. Valid token structure but user no longer exists in DB
+    nonexistent_payload = {
+        "sub": "non-existent-user-id-9999",
+        "exp": datetime.utcnow() + timedelta(hours=1)
+    }
+    nonexistent_token = jwt.encode(nonexistent_payload, SECRET_KEY, algorithm=ALGORITHM)
+    res3 = client.get("/auth/me", headers={"Authorization": f"Bearer {nonexistent_token}"})
+    assert res3.status_code == 401
+    assert "User not found" in res3.json()["detail"]
+
+
+def test_machine_readable_checklist_verified():
+    """Phase 17: Machine-readable PERSISTENT_STORAGE_CHECKLIST must be fully verified."""
+    from backend.app.core.checklist import PERSISTENT_STORAGE_CHECKLIST
+
+    assert len(PERSISTENT_STORAGE_CHECKLIST) >= 18
+    for phase_key, item in PERSISTENT_STORAGE_CHECKLIST.items():
+        assert "description" in item and len(item["description"]) > 0
+        assert item.get("verified") is True, f"Checklist item {phase_key} is not verified!"
+
