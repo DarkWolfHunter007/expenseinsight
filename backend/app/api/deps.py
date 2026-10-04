@@ -26,6 +26,26 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def get_current_user_optional(
+    auth_credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Retrieves the current authenticated user if a valid bearer token is supplied.
+    Returns None if no token is provided or if token is invalid.
+    Does NOT fall back to the default demo user.
+    """
+    if auth_credentials:
+        token = auth_credentials.credentials
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: str = payload.get("sub")
+            if user_id:
+                return db.query(User).filter(User.id == user_id).first()
+        except jwt.PyJWTError:
+            pass
+    return None
+
 def get_current_user(
     auth_credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
@@ -34,17 +54,9 @@ def get_current_user(
     Retrieves the current authenticated user.
     If no token is provided, creates or retrieves the default Demo/Guest user for seamless evaluation.
     """
-    if auth_credentials:
-        token = auth_credentials.credentials
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id: str = payload.get("sub")
-            if user_id:
-                user = db.query(User).filter(User.id == user_id).first()
-                if user:
-                    return user
-        except jwt.PyJWTError:
-            pass
+    user = get_current_user_optional(auth_credentials, db)
+    if user:
+        return user
 
     # Default Guest/Demo fallback user for evaluator convenience
     guest_user = db.query(User).filter(User.email == "demo@expenseinsight.app").first()
