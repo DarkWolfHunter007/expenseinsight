@@ -137,6 +137,8 @@ class TransactionProvider extends ChangeNotifier {
         needsReview: false,
         isDuplicate: old.isDuplicate,
         createdAt: old.createdAt,
+        sourceType: old.sourceType,
+        paymentMethod: old.paymentMethod,
       );
       // Remove from uncertain deck if present
       _uncertainTransactions.removeWhere((u) => u.transactionId == transactionId);
