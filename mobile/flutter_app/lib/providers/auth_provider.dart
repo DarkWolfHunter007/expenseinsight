@@ -15,8 +15,54 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> init() async {
     await _api.init();
-    // Default to guest demo session on startup
-    await loginGuest();
+    if (_api.token != null && _api.token!.isNotEmpty) {
+      _isLoading = true;
+      notifyListeners();
+      try {
+        final restoredUser = await _api.getMe();
+        if (restoredUser != null) {
+          _user = restoredUser;
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+      } catch (e) {
+        debugPrint('Failed to restore session on startup: $e');
+      }
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<bool> identifyWithEmail(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@') || !cleanEmail.contains('.')) {
+      _errorMessage = 'Please enter a valid email address.';
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final user = await _api.identifyWithEmail(cleanEmail);
+      _user = user;
+      _isLoading = false;
+      notifyListeners();
+      return _user != null;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> loginGuest() async {
@@ -58,6 +104,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     await _api.setToken(null);
     _user = null;
+    _errorMessage = null;
     notifyListeners();
   }
 }

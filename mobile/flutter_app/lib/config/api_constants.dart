@@ -44,6 +44,7 @@ class ApiConstants {
   static const String register = '/auth/register';
   static const String guest = '/auth/guest';
   static const String me = '/auth/me';
+  static const String identify = '/auth/identify';
 
   // Statement endpoints
   static const String uploadStatements = '/statements/upload';

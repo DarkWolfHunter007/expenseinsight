@@ -20,13 +20,19 @@ class ApiService {
   ApiService._internal();
 
   String? _token;
+  String? _userEmail;
+  String? _userId;
   bool isUsingMockFallback = false;
 
   String? get token => _token;
+  String? get userEmail => _userEmail;
+  String? get userId => _userId;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
+    _userEmail = prefs.getString('user_email');
+    _userId = prefs.getString('user_id');
     final savedUrl = prefs.getString('custom_base_url');
     if (savedUrl != null && savedUrl.isNotEmpty) {
       ApiConstants.setCustomBaseUrl(savedUrl);
@@ -44,13 +50,25 @@ class ApiService {
     }
   }
 
-  Future<void> setToken(String? token) async {
+  Future<void> setToken(String? token, {String? email, String? userId}) async {
     _token = token;
+    _userEmail = email;
+    _userId = userId;
     final prefs = await SharedPreferences.getInstance();
     if (token != null) {
       await prefs.setString('auth_token', token);
     } else {
       await prefs.remove('auth_token');
+    }
+    if (email != null) {
+      await prefs.setString('user_email', email);
+    } else if (token == null) {
+      await prefs.remove('user_email');
+    }
+    if (userId != null) {
+      await prefs.setString('user_id', userId);
+    } else if (token == null) {
+      await prefs.remove('user_id');
     }
   }
 
@@ -102,6 +120,54 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('API Error (login): $e');
+    }
+    return null;
+  }
+
+  Future<UserModel?> identifyWithEmail(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.identify}');
+      final response = await http
+          .post(
+            url,
+            headers: _headers,
+            body: json.encode({'email': cleanEmail}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final token = data['access_token'] as String?;
+        final userData = data['user'] as Map<String, dynamic>;
+        final user = UserModel.fromJson(userData);
+        await setToken(token, email: user.email, userId: user.id);
+        isUsingMockFallback = false;
+        return user;
+      }
+      throw Exception('Failed to identify user (HTTP ${response.statusCode}): ${response.body}');
+    } catch (e) {
+      debugPrint('API Error (identifyWithEmail): $e');
+      rethrow;
+    }
+  }
+
+  Future<UserModel?> getMe() async {
+    if (_token == null || _token!.isEmpty) {
+      return null;
+    }
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.me}');
+      final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final user = UserModel.fromJson(data);
+        await setToken(_token, email: user.email, userId: user.id);
+        isUsingMockFallback = false;
+        return user;
+      }
+    } catch (e) {
+      debugPrint('API Error (getMe): $e');
     }
     return null;
   }
