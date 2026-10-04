@@ -39,6 +39,41 @@ class ForecastingService:
         self.db = db
         self.forecaster = ExpenseForecaster()
 
+    @classmethod
+    def refresh_user_forecast_safe(
+        cls,
+        db: Session,
+        user_id: str,
+        trigger: str = "mutation",
+        transaction_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Authoritative entry point for safe forecast recalculation & persistence after mutations.
+        Logs forecast_refresh_started, forecast_refresh_completed, and forecast_refresh_failed.
+        Preserves caller transaction state without failing the primary operation.
+        """
+        logger.info(
+            f"forecast_refresh_started user_id={user_id} trigger={trigger} "
+            f"transaction_id={transaction_id or 'none'}"
+        )
+        try:
+            service = cls(db=db)
+            res = service.generate_user_forecast(user_id=user_id, persist=True)
+            status = res.get("status", "unknown")
+            total = res.get("total_forecast", 0.0)
+            logger.info(
+                f"forecast_refresh_completed user_id={user_id} trigger={trigger} "
+                f"status={status} total_forecast={total}"
+            )
+            return res
+        except Exception as e:
+            logger.error(
+                f"forecast_refresh_failed user_id={user_id} trigger={trigger} "
+                f"transaction_id={transaction_id or 'none'} error={str(e)}",
+                exc_info=True
+            )
+            return None
+
     def generate_user_forecast(self, user_id: str, persist: bool = True) -> Dict[str, Any]:
         """
         Generates next month forecast for a user based on total personal spending
@@ -48,7 +83,30 @@ class ForecastingService:
         txns = self.db.query(Transaction).filter(Transaction.user_id == user_id).all()
         cash_list = self.db.query(CashExpense).filter(CashExpense.user_id == user_id).all()
 
-        if not txns and not cash_list:
+        # Convert bank transactions to dicts for forecaster, excluding transfers & cash withdrawals
+        txn_dicts: List[Dict[str, Any]] = [
+            {
+                "date": str(t.date),
+                "amount": float(t.amount),
+                "category": str(t.category or "Uncategorized").strip() or "Uncategorized",
+                "transaction_type": "expense",
+                "cr_dr": "DR"
+            }
+            for t in txns
+            if AccountingPolicy.is_personal_expense(t)
+        ]
+
+        # Add manual cash expenses into total spending stream
+        for c in cash_list:
+            txn_dicts.append({
+                "date": str(c.expense_date),
+                "amount": float(c.amount),
+                "category": str(c.category or "Uncategorized").strip() or "Uncategorized",
+                "transaction_type": "expense",
+                "cr_dr": "DR"
+            })
+
+        if not txn_dicts:
             if persist:
                 self.db.query(Forecast).filter(Forecast.user_id == user_id).delete(synchronize_session=False)
                 self.db.commit()
@@ -68,29 +126,6 @@ class ForecastingService:
                 "explanation_bullets": ["Upload bank statements or record cash expenses to view predictive spending forecasts."]
             }
 
-        # Convert bank transactions to dicts for forecaster, excluding transfers & cash withdrawals
-        txn_dicts = [
-            {
-                "date": t.date,
-                "amount": t.amount,
-                "category": t.category,
-                "transaction_type": "expense",
-                "cr_dr": "DR"
-            }
-            for t in txns
-            if AccountingPolicy.is_personal_expense(t)
-        ]
-
-        # Add manual cash expenses into total spending stream
-        for c in cash_list:
-            txn_dicts.append({
-                "date": c.expense_date,
-                "amount": c.amount,
-                "category": c.category,
-                "transaction_type": "expense",
-                "cr_dr": "DR"
-            })
-
         forecast_res = self.forecaster.generate_forecast(txn_dicts)
 
         # Optionally persist to database
@@ -103,10 +138,10 @@ class ForecastingService:
                     fc_record = Forecast(
                         user_id=user_id,
                         forecast_date="Next Month",
-                        category=cat,
-                        predicted_amount=data["predicted_amount"],
-                        lower_bound=data["lower_bound"],
-                        upper_bound=data["upper_bound"],
+                        category=str(cat),
+                        predicted_amount=float(data["predicted_amount"]),
+                        lower_bound=float(data["lower_bound"]),
+                        upper_bound=float(data["upper_bound"]),
                         model_version="1.0.0"
                     )
                     self.db.add(fc_record)

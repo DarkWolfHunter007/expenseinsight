@@ -188,11 +188,12 @@ def delete_statement(
         db.commit()
     else:
         # Recompute forecast with remaining transactions & cash expenses
-        forecasting_service = ForecastingService(db=db)
-        try:
-            forecasting_service.generate_user_forecast(user_id=current_user.id, persist=True)
-        except Exception:
-            pass
+        ForecastingService.refresh_user_forecast_safe(
+            db=db,
+            user_id=current_user.id,
+            trigger="delete_statement",
+            transaction_id=statement_id
+        )
 
     return {"status": "success", "message": "Statement and all associated transactions and forecasts purged successfully."}
 

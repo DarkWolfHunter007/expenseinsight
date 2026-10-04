@@ -10,13 +10,15 @@ from ..deps import get_current_user
 
 router = APIRouter()
 
-def _trigger_forecast_sync(db: Session, user_id: str):
-    """Triggers asynchronous/background forecast recalculation safely if possible."""
-    try:
-        from ...services.forecasting_service import ForecastingService
-        ForecastingService(db=db).generate_user_forecast(user_id=user_id, persist=True)
-    except Exception:
-        pass
+def _trigger_forecast_sync(db: Session, user_id: str, trigger: str = "cash_expense_mutation", transaction_id: Optional[str] = None):
+    """Triggers observable, safe forecast recalculation and persistence."""
+    from ...services.forecasting_service import ForecastingService
+    ForecastingService.refresh_user_forecast_safe(
+        db=db,
+        user_id=user_id,
+        trigger=trigger,
+        transaction_id=transaction_id
+    )
 
 
 @router.post("", response_model=CashExpenseResponse, status_code=status.HTTP_201_CREATED)
@@ -30,7 +32,7 @@ def create_cash_expense(
     """
     service = CashExpenseService(db=db)
     expense = service.create_cash_expense(user_id=current_user.id, payload=payload)
-    _trigger_forecast_sync(db, current_user.id)
+    _trigger_forecast_sync(db, current_user.id, trigger="create_cash_expense", transaction_id=expense.id)
     return expense
 
 
@@ -104,7 +106,7 @@ def update_cash_expense(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cash expense not found."
         )
-    _trigger_forecast_sync(db, current_user.id)
+    _trigger_forecast_sync(db, current_user.id, trigger="update_cash_expense", transaction_id=expense_id)
     return expense
 
 
@@ -124,5 +126,5 @@ def delete_cash_expense(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cash expense not found."
         )
-    _trigger_forecast_sync(db, current_user.id)
+    _trigger_forecast_sync(db, current_user.id, trigger="delete_cash_expense", transaction_id=expense_id)
     return {"status": "success", "message": "Cash expense deleted successfully."}

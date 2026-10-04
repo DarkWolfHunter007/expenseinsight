@@ -208,6 +208,13 @@ def update_transaction_category(
             cash.category = payload.category.strip()
             db.commit()
             db.refresh(cash)
+            from ...services.forecasting_service import ForecastingService
+            ForecastingService.refresh_user_forecast_safe(
+                db=db,
+                user_id=current_user.id,
+                trigger="cash_category_update",
+                transaction_id=cash.id
+            )
             return _format_cash_to_transaction_response(cash)
         raise HTTPException(status_code=404, detail="Transaction not found.")
 
@@ -243,6 +250,14 @@ def update_transaction_category(
 
     db.commit()
     db.refresh(txn)
+
+    from ...services.forecasting_service import ForecastingService
+    ForecastingService.refresh_user_forecast_safe(
+        db=db,
+        user_id=current_user.id,
+        trigger="transaction_category_update",
+        transaction_id=txn.id
+    )
     return txn
 
 
@@ -267,16 +282,13 @@ def delete_transaction(
     db.delete(txn)
     db.commit()
 
-    # Re-evaluate forecasts
-    remaining_count = db.query(Transaction).filter(Transaction.user_id == current_user.id).count()
-    if remaining_count == 0:
-        db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
-        db.commit()
-    else:
-        try:
-            ForecastingService(db=db).generate_user_forecast(user_id=current_user.id, persist=True)
-        except Exception:
-            pass
+    # Re-evaluate forecasts safely and observably
+    ForecastingService.refresh_user_forecast_safe(
+        db=db,
+        user_id=current_user.id,
+        trigger="delete_transaction",
+        transaction_id=transaction_id
+    )
 
     return {"status": "success", "message": "Transaction deleted."}
 
