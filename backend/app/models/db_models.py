@@ -116,6 +116,8 @@ class CategoryCorrection(Base):
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     old_category = Column(String(50), nullable=False)
     new_category = Column(String(50), nullable=False)
+    # Whether the user asked for this correction to also apply to this merchant on future uploads
+    apply_to_future = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     transaction = relationship("Transaction", back_populates="corrections")

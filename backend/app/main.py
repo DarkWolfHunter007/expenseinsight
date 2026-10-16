@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from backend.app.database.session import Base, engine, get_db
-from backend.app.models.db_models import Merchant, User
+from backend.app.models.db_models import Merchant, Statement, User
 from backend.app.api.api import api_router
 from backend.app.api.endpoints import analytics, auth, cash_expenses, forecast, model, statements, transactions
 from backend.ml.preprocessing.merchant_normalizer import DEFAULT_MERCHANT_KB
@@ -75,18 +75,6 @@ def startup_event():
                 )
                 db.add(m)
             db.commit()
-
-        # Schema evolution: ensure payment_method column exists in cash_expenses
-        with engine.connect() as conn:
-            try:
-                cursor = conn.connection.cursor()
-                cursor.execute("PRAGMA table_info(cash_expenses)")
-                cols = [row[1] for row in cursor.fetchall()]
-                if cols and "payment_method" not in cols:
-                    cursor.execute("ALTER TABLE cash_expenses ADD COLUMN payment_method VARCHAR(20) DEFAULT 'cash'")
-                    conn.connection.commit()
-            except Exception:
-                pass
     finally:
         db.close()
 
@@ -114,6 +102,22 @@ def seed_demo_data(db: Session = Depends(get_db)):
         db.add(demo_user)
         db.commit()
         db.refresh(demo_user)
+
+    # Idempotent: calling this twice must not stack a second 6-month statement on top of the first
+    # (that would silently double every demo total).
+    existing = db.query(Statement).filter(
+        Statement.user_id == demo_user.id,
+        Statement.bank_name == "HDFC Bank",
+        Statement.processing_status == "completed"
+    ).first()
+    if existing:
+        return {
+            "status": "success",
+            "message": "Demo data was already seeded; nothing changed.",
+            "statement_id": existing.id,
+            "total_transactions": existing.total_transactions,
+            "user_email": demo_user.email
+        }
 
     stmt = seed_sample_statement(bank="HDFC Bank", db=db, current_user=demo_user)
     return {

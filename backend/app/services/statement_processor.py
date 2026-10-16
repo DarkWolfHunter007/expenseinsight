@@ -56,14 +56,32 @@ class StatementProcessor:
             except Exception as e:
                 print(f"{YELLOW}[!] Notice: could not load ML classifier: {e}{RESET}")
 
-        # Load user corrections from DB for layer 4
-        corrections = self.db.query(CategoryCorrection).all()
-        custom_dict = {c.old_category: c.new_category for c in corrections}
-
-        self.normalizer = MerchantNormalizer(custom_corrections=custom_dict)
+        self.normalizer = MerchantNormalizer()
         self.hybrid_categorizer = HybridCategorizer(classifier=classifier, normalizer=self.normalizer)
         self.analytics_service = AnalyticsService(db=self.db)
         self.forecasting_service = ForecastingService(db=self.db)
+
+    def _load_learned_categories(self, user_id: str) -> Dict[str, str]:
+        """
+        Active-learning feedback for ONE user: {normalized_merchant: category the user chose}.
+        Only corrections made with "apply to future" enabled are used, and later corrections
+        win over earlier ones. Other users' corrections are never read.
+        """
+        rows = (
+            self.db.query(CategoryCorrection.new_category, Transaction.normalized_merchant)
+            .join(Transaction, Transaction.id == CategoryCorrection.transaction_id)
+            .filter(
+                CategoryCorrection.user_id == user_id,
+                CategoryCorrection.apply_to_future.is_not(False)
+            )
+            .order_by(CategoryCorrection.created_at.asc())
+            .all()
+        )
+        learned: Dict[str, str] = {}
+        for new_category, merchant_key in rows:
+            if new_category and merchant_key and merchant_key != "unknown":
+                learned[merchant_key] = new_category
+        return learned
 
     def process_statement(self, statement_id: str, file_path_or_bytes: Any) -> Dict[str, Any]:
         """
@@ -156,6 +174,7 @@ class StatementProcessor:
             category_counts = Counter()
             confidence_tiers = {"High (>=85%)": 0, "Medium (60-84%)": 0, "Low (<60%) [Review]": 0}
             sample_normalizations = []
+            learned_categories = self._load_learned_categories(stmt.user_id)
 
             for item in raw_txns:
                 raw_desc = item["raw_description"]
@@ -173,6 +192,16 @@ class StatementProcessor:
                 confidence = float(cat_res.get("confidence", 0.0))
                 needs_review = cat_res.get("needs_review", False)
                 norm_merchant = cat_res.get("normalized_merchant", raw_desc[:20])
+                category_source = cat_res.get("source", "ml")
+
+                # Layer 4: apply what THIS user previously taught us about this merchant
+                # (explicit salary / ATM rules keep priority).
+                learned_category = learned_categories.get(norm_merchant)
+                if learned_category and category_source != "rule_override":
+                    category = learned_category
+                    confidence = 0.95
+                    needs_review = False
+                    category_source = "learned_feedback"
 
                 category_counts[category] += 1
 
@@ -202,7 +231,7 @@ class StatementProcessor:
                     reference_number=item.get("reference_number"),
                     category=category,
                     category_confidence=confidence,
-                    category_source=cat_res.get("source", "ml"),
+                    category_source=category_source,
                     needs_review=needs_review,
                     is_duplicate=item.get("is_duplicate", False)
                 )
@@ -250,18 +279,25 @@ class StatementProcessor:
             stmt.processing_progress = 0.85
             self.db.commit()
 
-            summary = self.analytics_service.get_summary(user_id=stmt.user_id)
-            recurring_subs = summary.get("recurring_expenses", [])
+            # By now every transaction is safely stored. The analysis summary and forecast below are
+            # derived data (both are recomputed on demand by their API endpoints), so a hiccup here
+            # must not mark an otherwise fully ingested statement as "failed".
+            try:
+                summary = self.analytics_service.get_summary(user_id=stmt.user_id)
+                recurring_subs = summary.get("recurring_expenses", [])
 
-            print(f"  {GREEN}[+]{RESET} Total Spending (All-Time) : {BOLD}Rs. {summary.get('total_expense', 0.0):,.2f}{RESET}")
-            print(f"  {GREEN}[+]{RESET} Current Month Spending   : {BOLD}Rs. {summary.get('this_month_spent', 0.0):,.2f}{RESET} (MoM: {summary.get('month_over_month_change_pct', 0.0):+.1f}%)")
-            print(f"  {GREEN}[+]{RESET} Net Savings Rate         : {GREEN}Rs. {summary.get('net_savings', 0.0):,.2f}{RESET}")
-            print(f"  {GREEN}[+]{RESET} Subscriptions Detected   : {BOLD}{len(recurring_subs)}{RESET} recurring services")
-            for sub in recurring_subs[:4]:
-                print(f"      * {BOLD}{sub.get('merchant')}{RESET} ({sub.get('category')}): Rs. {sub.get('average_amount', 0):,.2f}/mo (Freq: {sub.get('frequency', 'Monthly')})")
+                print(f"  {GREEN}[+]{RESET} Total Spending (All-Time) : {BOLD}Rs. {summary.get('total_expense', 0.0):,.2f}{RESET}")
+                print(f"  {GREEN}[+]{RESET} Current Month Spending   : {BOLD}Rs. {summary.get('this_month_spent', 0.0):,.2f}{RESET} (MoM: {summary.get('month_over_month_change_pct', 0.0):+.1f}%)")
+                print(f"  {GREEN}[+]{RESET} Net Savings Rate         : {GREEN}Rs. {summary.get('net_savings', 0.0):,.2f}{RESET}")
+                print(f"  {GREEN}[+]{RESET} Subscriptions Detected   : {BOLD}{len(recurring_subs)}{RESET} recurring services")
+                for sub in recurring_subs[:4]:
+                    print(f"      * {BOLD}{sub.get('merchant')}{RESET} ({sub.get('category')}): Rs. {sub.get('average_amount', 0):,.2f}/mo (Freq: {sub.get('frequency', 'Monthly')})")
+            except Exception as analysis_err:
+                self.db.rollback()
+                print(f"  {YELLOW}[!] Spending summary skipped ({analysis_err}); transactions were saved.{RESET}")
 
             # =========================================================================
-            # STAGE 7: Time-Series Forecasting (Holt-Winters + 90% CI)
+            # STAGE 7: Time-Series Forecasting (ARIMA / exponential smoothing + 90% CI)
             # =========================================================================
             step_t0 = time.time()
             print(f"\n{BLUE}[Stage 7/7] Generating Time-Series Expense Forecast...{RESET}")
@@ -269,17 +305,22 @@ class StatementProcessor:
             stmt.processing_progress = 0.95
             self.db.commit()
 
-            forecast_data = self.forecasting_service.generate_user_forecast(user_id=stmt.user_id, persist=True)
-            total_forecast = forecast_data.get("total_forecast", 0.0)
-            ci_lower = forecast_data.get("confidence_interval_lower", 0.0)
-            ci_upper = forecast_data.get("confidence_interval_upper", 0.0)
-            next_7d = forecast_data.get("next_7_days_forecast", 0.0)
-            explanations = forecast_data.get("explanations", [])
+            try:
+                forecast_data = self.forecasting_service.generate_user_forecast(user_id=stmt.user_id, persist=True)
+                total_forecast = forecast_data.get("total_forecast", 0.0)
+                ci_lower = forecast_data.get("lower_bound", 0.0)
+                ci_upper = forecast_data.get("upper_bound", 0.0)
+                next_7d = forecast_data.get("next_7_days_forecast", 0.0)
+                next_30d = forecast_data.get("next_30_days_forecast", total_forecast)
+                explanations = forecast_data.get("explanation_bullets", [])
 
-            print(f"  {GREEN}[+]{RESET} Next Month Forecast       : {BOLD}Rs. {total_forecast:,.2f}{RESET} (90% CI: [Rs. {ci_lower:,.2f} - Rs. {ci_upper:,.2f}])")
-            print(f"  {GREEN}[+]{RESET} Short-Term Targets        : Next 7 Days: Rs. {next_7d:,.2f} | Next 30 Days: Rs. {total_forecast:,.2f}")
-            if explanations:
-                print(f"  {GREEN}[+]{RESET} AI Drivers / Reasoning   : {explanations[0]}")
+                print(f"  {GREEN}[+]{RESET} Next Month Forecast       : {BOLD}Rs. {total_forecast:,.2f}{RESET} (90% CI: [Rs. {ci_lower:,.2f} - Rs. {ci_upper:,.2f}])")
+                print(f"  {GREEN}[+]{RESET} Short-Term Targets        : Next 7 Days: Rs. {next_7d:,.2f} | Next 30 Days: Rs. {next_30d:,.2f}")
+                if explanations:
+                    print(f"  {GREEN}[+]{RESET} AI Drivers / Reasoning   : {explanations[0]}")
+            except Exception as forecast_err:
+                self.db.rollback()
+                print(f"  {YELLOW}[!] Forecast skipped ({forecast_err}); it will be regenerated on demand.{RESET}")
 
             # =========================================================================
             # PIPELINE COMPLETED
@@ -305,8 +346,13 @@ class StatementProcessor:
             }
 
         except Exception as e:
-            stmt.processing_status = "failed"
-            stmt.processing_step = f"Failed: {str(e)}"
-            self.db.commit()
+            # Discard any half-written work first. If the failure came from the database itself the
+            # session is unusable until it is rolled back, and committing would hide the real error.
+            self.db.rollback()
+            failed_stmt = self.db.query(Statement).filter(Statement.id == statement_id).first()
+            if failed_stmt is not None:
+                failed_stmt.processing_status = "failed"
+                failed_stmt.processing_step = f"Failed: {str(e)}"[:100]
+                self.db.commit()
             print(f"\n{RED}[X] [Pipeline Error] Statement processing failed: {e}{RESET}\n")
             raise e

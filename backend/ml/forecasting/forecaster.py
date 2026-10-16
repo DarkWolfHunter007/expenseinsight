@@ -205,7 +205,7 @@ class ExpenseForecaster:
         explanation_bullets = [
             f"Expected total next month spending: ₹{total_predicted:,.0f} (range: ₹{total_lower:,.0f} – ₹{total_upper:,.0f}).",
             f"Major spending categories: {', '.join(top_cat_names)}." if top_cat_names else "Balanced across categories.",
-            f"Based on exponential smoothing over {num_months} month(s) of transaction patterns.",
+            f"Based on ARIMA / exponential-smoothing time-series models over {num_months} month(s) of transaction patterns.",
             f"Estimated next 7 days spending: ₹{next_7_days:,.0f}."
         ]
 

@@ -20,7 +20,7 @@ SAMPLE_STATEMENTS_DIR = os.getenv("SAMPLE_STATEMENTS_DIR", str(BACKEND_DIR / "sa
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/upload", response_model=List[StatementResponse])
-async def upload_statements(
+def upload_statements(
     files: List[UploadFile] = File(...),
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
@@ -28,6 +28,10 @@ async def upload_statements(
 ):
     """
     Uploads one or more bank statement PDFs and initiates the 7-stage processing pipeline.
+
+    This is a plain `def` (not `async def`) on purpose: PDF extraction and ML categorization are
+    blocking, CPU-heavy work, and FastAPI runs sync endpoints in a worker thread so one upload
+    does not freeze every other request on the server.
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded.")
@@ -36,11 +40,13 @@ async def upload_statements(
     processor = StatementProcessor(db=db)
 
     for file in files:
-        if not file.filename.lower().endswith(".pdf"):
+        # Never trust the client-supplied name: strip any directory components (path traversal)
+        original_name = os.path.basename((file.filename or "").replace("\\", "/")).strip()
+        if not original_name.lower().endswith(".pdf"):
             continue
 
         file_id = str(uuid.uuid4())
-        safe_filename = f"{file_id}_{file.filename}"
+        safe_filename = f"{file_id}_{original_name}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
         with open(file_path, "wb") as buffer:
@@ -49,7 +55,7 @@ async def upload_statements(
         stmt = Statement(
             id=file_id,
             user_id=current_user.id,
-            file_name=file.filename,
+            file_name=original_name,
             file_path=file_path,
             processing_status="uploaded",
             processing_step="Uploaded",
@@ -59,12 +65,12 @@ async def upload_statements(
         db.commit()
         db.refresh(stmt)
 
-        # Process synchronously or via background task
+        # Process synchronously; a failure is recorded on the statement (status "failed") by the processor
         try:
             processor.process_statement(statement_id=stmt.id, file_path_or_bytes=file_path)
-            db.refresh(stmt)
         except Exception as e:
-            print(f"Error processing statement {file.filename}: {e}")
+            print(f"Error processing statement {original_name}: {e}")
+        db.refresh(stmt)
 
         saved_statements.append(stmt)
 

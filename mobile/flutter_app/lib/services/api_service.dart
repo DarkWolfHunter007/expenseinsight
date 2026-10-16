@@ -219,8 +219,15 @@ class ApiService {
       if (response.statusCode == 200) {
         return StatementModel.fromJson(json.decode(response.body));
       }
+      if (!isUsingMockFallback) {
+        throw Exception('Failed to load sample statement (HTTP ${response.statusCode})');
+      }
     } catch (e) {
       debugPrint('API Error (seedSampleStatement): $e');
+      // Only demo (offline mock) sessions may see fake data; a real session must surface the error.
+      if (!isUsingMockFallback) {
+        rethrow;
+      }
     }
     return MockDataService.mockStatements.first;
   }
@@ -342,8 +349,15 @@ class ApiService {
         final List<dynamic> list = json.decode(response.body);
         return list.map((e) => UncertainReviewModel.fromJson(e)).toList();
       }
+      if (!isUsingMockFallback) {
+        throw Exception('Failed to load uncertain transactions (HTTP ${response.statusCode})');
+      }
     } catch (e) {
       debugPrint('API Error (getUncertainTransactions): $e');
+      // Never show made-up transactions to a real user just because the server hiccuped.
+      if (!isUsingMockFallback) {
+        rethrow;
+      }
     }
     return MockDataService.mockUncertainTransactions;
   }
@@ -361,7 +375,8 @@ class ApiService {
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('API Error (updateTransactionCategory): $e');
-      return true; // Optimistic fallback
+      // Only the offline demo may pretend the save worked; otherwise report the failure so the UI can revert.
+      return isUsingMockFallback;
     }
   }
 
@@ -552,8 +567,15 @@ class ApiService {
       if (response.statusCode == 200) {
         return ModelMetricsModel.fromJson(json.decode(response.body));
       }
+      if (!isUsingMockFallback) {
+        throw Exception('Failed to load model metrics (HTTP ${response.statusCode})');
+      }
     } catch (e) {
       debugPrint('API Error (getModelMetrics): $e');
+      // Benchmark figures are shown as facts about the real model, so never substitute mock numbers.
+      if (!isUsingMockFallback) {
+        rethrow;
+      }
     }
     return MockDataService.mockModelMetrics;
   }

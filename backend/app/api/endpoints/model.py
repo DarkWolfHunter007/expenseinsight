@@ -126,11 +126,21 @@ def get_model_comparison():
     }
 
 @router.post("/retrain", response_model=ModelRetrainResponse)
-def retrain_model(db: Session = Depends(get_db)):
+def retrain_model(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Handles model retraining requests.
     In decoupled/Docker mode (OFFLINE_TRAINING_MODE=true), registers feedback corrections for offline training runs.
+    Running a real training job on the server is expensive, so that mode is limited to registered (non-guest) users.
     """
+    if not OFFLINE_TRAINING_MODE and current_user.is_guest:
+        raise HTTPException(
+            status_code=403,
+            detail="Retraining the model on the server requires a registered (non-guest) account."
+        )
+
     corrections_count = db.query(CategoryCorrection).count()
     data = DEFAULT_BASELINE_METRICS
     if os.path.exists(METRICS_PATH):

@@ -492,7 +492,7 @@ class MerchantNormalizer:
 
     def add_user_correction(self, raw_or_cleaned_merchant: str, canonical_name: str, category: Optional[str] = None):
         """Layer 4: Persistent user feedback correction."""
-        clean_key = self.text_cleaner.clean(raw_or_or_str := raw_or_cleaned_merchant)
+        clean_key = self.text_cleaner.clean(raw_or_cleaned_merchant)
         if clean_key:
             self.custom_corrections[clean_key] = canonical_name
             self._alias_to_canonical[clean_key] = canonical_name
@@ -525,12 +525,19 @@ class MerchantNormalizer:
             default_cat = self.kb.get(canonical, {}).get("default_category")
             return (canonical, canonical.lower().replace(" ", "_"), default_cat, 0.98)
 
-        # Check if any known alias exists as a standalone token or substring inside the cleaned text
-        for alias, canonical in self._alias_to_canonical.items():
-            # Check for word boundary substring match
+        # Check if any known alias exists as a standalone token or substring inside the cleaned text.
+        # When several aliases match, the longest (most specific) one wins, so that
+        # "amazon prime video" resolves to Amazon Prime rather than the generic "amazon".
+        best_alias: Optional[str] = None
+        for alias in self._alias_to_canonical:
+            if best_alias is not None and len(alias) <= len(best_alias):
+                continue
             if re.search(r'\b' + re.escape(alias) + r'\b', cleaned_text):
-                default_cat = self.kb.get(canonical, {}).get("default_category")
-                return (canonical, canonical.lower().replace(" ", "_"), default_cat, 0.95)
+                best_alias = alias
+        if best_alias is not None:
+            canonical = self._alias_to_canonical[best_alias]
+            default_cat = self.kb.get(canonical, {}).get("default_category")
+            return (canonical, canonical.lower().replace(" ", "_"), default_cat, 0.95)
 
         # Layer 3: Fuzzy similarity matching using RapidFuzz
         if self._all_aliases:

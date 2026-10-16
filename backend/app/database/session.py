@@ -40,6 +40,13 @@ if DATABASE_URL.startswith("sqlite"):
                 cursor.execute("ALTER TABLE cash_expenses ADD COLUMN payment_method VARCHAR(20) DEFAULT 'cash'")
         except Exception:
             pass
+        try:
+            cursor.execute("PRAGMA table_info(category_corrections)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if cols and "apply_to_future" not in cols:
+                cursor.execute("ALTER TABLE category_corrections ADD COLUMN apply_to_future BOOLEAN DEFAULT 1")
+        except Exception:
+            pass
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

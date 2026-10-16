@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ...database.session import get_db
-from ...models.db_models import CategoryCorrection, Transaction, User, CashExpense
+from ...models.db_models import CategoryCorrection, Statement, Transaction, User, CashExpense
 from ...models.schemas import TransactionResponse, TransactionUpdateCategory, UncertainTransactionReview
 from ..deps import get_current_user
 
@@ -232,7 +232,8 @@ def update_transaction_category(
         transaction_id=txn.id,
         user_id=current_user.id,
         old_category=old_cat,
-        new_category=new_cat
+        new_category=new_cat,
+        apply_to_future=bool(payload.apply_to_future)
     )
     db.add(correction)
 
@@ -268,8 +269,10 @@ def delete_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Deletes a single transaction and cascades to its corrections and forecast update."""
-    from ...models.db_models import CategoryCorrection, Forecast
+    """
+    Deletes a single transaction (bank statement row or manually entered cash/UPI/bank expense),
+    cascading to its corrections and refreshing the forecast.
+    """
     from ...services.forecasting_service import ForecastingService
 
     txn = db.query(Transaction).filter(
@@ -277,10 +280,31 @@ def delete_transaction(
         Transaction.user_id == current_user.id
     ).first()
     if not txn:
-        raise HTTPException(status_code=404, detail="Transaction not found.")
+        # The list endpoint also returns manual expenses under /transactions, so accept their ids here too
+        cash = db.query(CashExpense).filter(
+            CashExpense.id == transaction_id,
+            CashExpense.user_id == current_user.id
+        ).first()
+        if not cash:
+            raise HTTPException(status_code=404, detail="Transaction not found.")
+        db.delete(cash)
+        db.commit()
+        ForecastingService.refresh_user_forecast_safe(
+            db=db,
+            user_id=current_user.id,
+            trigger="delete_cash_expense",
+            transaction_id=transaction_id
+        )
+        return {"status": "success", "message": "Transaction deleted."}
 
+    parent_statement_id = txn.statement_id
     db.query(CategoryCorrection).filter(CategoryCorrection.transaction_id == transaction_id).delete(synchronize_session=False)
     db.delete(txn)
+    if parent_statement_id:
+        # Keep the statement's transaction count in step with what is actually stored
+        parent = db.query(Statement).filter(Statement.id == parent_statement_id).first()
+        if parent is not None and (parent.total_transactions or 0) > 0:
+            parent.total_transactions = parent.total_transactions - 1
     db.commit()
 
     # Re-evaluate forecasts safely and observably
@@ -300,11 +324,15 @@ def delete_all_transactions(
     current_user: User = Depends(get_current_user)
 ):
     """Purges all user transactions, category corrections, and forecasts."""
-    from ...models.db_models import CategoryCorrection, Forecast
+    from ...models.db_models import Forecast
 
     db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).delete(synchronize_session=False)
     db.query(Transaction).filter(Transaction.user_id == current_user.id).delete(synchronize_session=False)
     db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
+    # Statements stay listed but no longer own any transactions
+    db.query(Statement).filter(Statement.user_id == current_user.id).update(
+        {Statement.total_transactions: 0}, synchronize_session=False
+    )
     db.commit()
 
     return {"status": "success", "message": "All transactions purged."}

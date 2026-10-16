@@ -166,6 +166,17 @@ class AnalyticsService:
         if norm_start and norm_end:
             return norm_start, norm_end
 
+        auto_start, auto_end = self._derive_default_bounds(user_id, bank_df, cash_df)
+        # A single explicit bound (open-ended range) is honoured; the other side falls back to the data span.
+        return norm_start or auto_start, norm_end or auto_end
+
+    def _derive_default_bounds(
+        self,
+        user_id: str,
+        bank_df: Optional[pd.DataFrame] = None,
+        cash_df: Optional[pd.DataFrame] = None
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Span of the user's own data when no explicit date range is requested (rules 2-3 above)."""
         stmt_start, stmt_end = self._get_statement_date_bounds(user_id)
 
         bank_dates: List[str] = []
@@ -197,12 +208,14 @@ class AnalyticsService:
         start_date: Optional[str],
         end_date: Optional[str]
     ) -> pd.DataFrame:
-        """Filters a DataFrame containing date_dt column to [start_date, end_date]."""
-        if df.empty or not start_date or not end_date:
+        """Filters a DataFrame containing date_dt column to [start_date, end_date]; either bound may be open."""
+        if df.empty:
             return df
-        start_dt = pd.Timestamp(start_date)
-        end_dt = pd.Timestamp(end_date)
-        return df[(df["date_dt"] >= start_dt) & (df["date_dt"] <= end_dt)]
+        if start_date:
+            df = df[df["date_dt"] >= pd.Timestamp(start_date)]
+        if end_date:
+            df = df[df["date_dt"] <= pd.Timestamp(end_date)]
+        return df
 
     def get_summary(
         self,
@@ -593,7 +606,7 @@ class AnalyticsService:
         if df.empty:
             return []
 
-        if start_date and end_date:
+        if start_date or end_date:
             period_start, period_end = self._normalize_range(start_date, end_date)
             df = self._filter_df_by_date(df, period_start, period_end)
 
