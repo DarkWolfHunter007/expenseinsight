@@ -253,7 +253,7 @@ class _ModelBenchmarkScreenState extends State<ModelBenchmarkScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Re-fit model weights incorporating user manual corrections from feedback loop.',
+                        'Saves your category corrections for the next offline model build. Your corrections already apply to your own future uploads, and the model itself is not changed here.',
                         style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
                       ),
                       const SizedBox(height: 14),
@@ -267,7 +267,7 @@ class _ModelBenchmarkScreenState extends State<ModelBenchmarkScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(ok ? 'Model successfully retrained!' : 'Failed to retrain model. Ensure backend is reachable.'),
+                                        content: Text(ok ? 'Feedback saved. The model is rebuilt offline; your corrections already apply to your future uploads.' : 'Could not save feedback. Ensure the backend is reachable and you are signed in.'),
                                         backgroundColor: ok ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                                         behavior: SnackBarBehavior.floating,
                                       ),
@@ -281,7 +281,7 @@ class _ModelBenchmarkScreenState extends State<ModelBenchmarkScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                 )
                               : const Icon(Icons.sync_rounded, size: 18),
-                          label: Text(provider.isRetraining ? 'Retraining...' : 'Retrain ML Model Now'),
+                          label: Text(provider.isRetraining ? 'Saving...' : 'Save feedback for next model build'),
                         ),
                       ),
                     ],

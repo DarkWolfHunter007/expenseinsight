@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ...database.session import get_db
-from ...models.db_models import CategoryCorrection, Transaction, User, CashExpense
+from ...models.db_models import CategoryCorrection, CashExpense, MerchantCategoryRule, Transaction, User
 from ...models.schemas import TransactionResponse, TransactionUpdateCategory, UncertainTransactionReview
 from ..deps import get_current_user
 
@@ -238,6 +238,20 @@ def update_transaction_category(
 
     # If apply_to_future is enabled, update all same-merchant transactions for this user
     if payload.apply_to_future and txn.normalized_merchant:
+        # Remember the choice so future statements categorize this merchant the same way
+        rule = db.query(MerchantCategoryRule).filter(
+            MerchantCategoryRule.user_id == current_user.id,
+            MerchantCategoryRule.normalized_merchant == txn.normalized_merchant
+        ).first()
+        if rule:
+            rule.category = new_cat
+        else:
+            db.add(MerchantCategoryRule(
+                user_id=current_user.id,
+                normalized_merchant=txn.normalized_merchant,
+                category=new_cat
+            ))
+
         similar_txns = db.query(Transaction).filter(
             Transaction.user_id == current_user.id,
             Transaction.normalized_merchant == txn.normalized_merchant,
@@ -303,6 +317,7 @@ def delete_all_transactions(
     from ...models.db_models import CategoryCorrection, Forecast
 
     db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(MerchantCategoryRule).filter(MerchantCategoryRule.user_id == current_user.id).delete(synchronize_session=False)
     db.query(Transaction).filter(Transaction.user_id == current_user.id).delete(synchronize_session=False)
     db.query(Forecast).filter(Forecast.user_id == current_user.id).delete(synchronize_session=False)
     db.commit()

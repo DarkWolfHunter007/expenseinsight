@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ...database.session import get_db
-from ...models.db_models import CategoryCorrection, ModelVersion, User
+from ...models.db_models import CategoryCorrection, MerchantCategoryRule, ModelVersion, User
 from ...models.schemas import ModelMetricsResponse, ModelRetrainResponse
 from ..deps import get_current_user
 
@@ -126,12 +126,15 @@ def get_model_comparison():
     }
 
 @router.post("/retrain", response_model=ModelRetrainResponse)
-def retrain_model(db: Session = Depends(get_db)):
+def retrain_model(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Handles model retraining requests.
-    In decoupled/Docker mode (OFFLINE_TRAINING_MODE=true), registers feedback corrections for offline training runs.
+    Handles model retraining requests for the signed-in user.
+    In decoupled/Docker mode (OFFLINE_TRAINING_MODE=true) the model weights are NOT changed: the
+    user's corrections are only recorded for the next offline training run. The user's own
+    merchant rules already apply to their future uploads without any retraining.
     """
-    corrections_count = db.query(CategoryCorrection).count()
+    corrections_count = db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).count()
+    rules_count = db.query(MerchantCategoryRule).filter(MerchantCategoryRule.user_id == current_user.id).count()
     data = DEFAULT_BASELINE_METRICS
     if os.path.exists(METRICS_PATH):
         try:
@@ -143,7 +146,10 @@ def retrain_model(db: Session = Depends(get_db)):
     if OFFLINE_TRAINING_MODE:
         return {
             "status": "success",
-            "message": f"Active learning feedback recorded ({corrections_count} corrections stored in DB). Offline training pipeline will incorporate these in the next model build.",
+            "message": (
+                f"Model weights were not changed: retraining runs offline. {corrections_count} of your corrections "
+                f"are saved for the next model build, and {rules_count} merchant rule(s) already apply to your future uploads."
+            ),
             "new_accuracy": data.get("test_metrics", {}).get("accuracy", 0.999),
             "new_macro_f1": data.get("test_metrics", {}).get("macro_f1", 0.998),
             "retrained_samples_count": data.get("sample_count", 10000)

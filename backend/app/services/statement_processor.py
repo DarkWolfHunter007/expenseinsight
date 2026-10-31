@@ -14,7 +14,7 @@ from .pdf_extractor import PDFExtractor
 from .transaction_parser import TransactionParser
 from .analytics_service import AnalyticsService
 from .forecasting_service import ForecastingService
-from ..models.db_models import Statement, Transaction, CategoryCorrection
+from ..models.db_models import MerchantCategoryRule, Statement, Transaction
 
 # Terminal ANSI Color & Style Formatting (Safe for Windows & Unix)
 CYAN = "\033[1;36m"
@@ -56,11 +56,8 @@ class StatementProcessor:
             except Exception as e:
                 print(f"{YELLOW}[!] Notice: could not load ML classifier: {e}{RESET}")
 
-        # Load user corrections from DB for layer 4
-        corrections = self.db.query(CategoryCorrection).all()
-        custom_dict = {c.old_category: c.new_category for c in corrections}
-
-        self.normalizer = MerchantNormalizer(custom_corrections=custom_dict)
+        # Learned per-user merchant -> category rules are applied per statement in process_statement
+        self.normalizer = MerchantNormalizer()
         self.hybrid_categorizer = HybridCategorizer(classifier=classifier, normalizer=self.normalizer)
         self.analytics_service = AnalyticsService(db=self.db)
         self.forecasting_service = ForecastingService(db=self.db)
@@ -157,6 +154,12 @@ class StatementProcessor:
             confidence_tiers = {"High (>=85%)": 0, "Medium (60-84%)": 0, "Low (<60%) [Review]": 0}
             sample_normalizations = []
 
+            # This user's learned preferences (from "apply to future" category corrections)
+            learned_rules = {
+                r.normalized_merchant: r.category
+                for r in self.db.query(MerchantCategoryRule).filter(MerchantCategoryRule.user_id == stmt.user_id).all()
+            }
+
             for item in raw_txns:
                 raw_desc = item["raw_description"]
                 amt = item["amount"]
@@ -173,6 +176,13 @@ class StatementProcessor:
                 confidence = float(cat_res.get("confidence", 0.0))
                 needs_review = cat_res.get("needs_review", False)
                 norm_merchant = cat_res.get("normalized_merchant", raw_desc[:20])
+                source = cat_res.get("source", "ml")
+
+                if norm_merchant in learned_rules:
+                    category = learned_rules[norm_merchant]
+                    confidence = 0.95
+                    needs_review = False
+                    source = "learned_feedback"
 
                 category_counts[category] += 1
 
@@ -202,7 +212,7 @@ class StatementProcessor:
                     reference_number=item.get("reference_number"),
                     category=category,
                     category_confidence=confidence,
-                    category_source=cat_res.get("source", "ml"),
+                    category_source=source,
                     needs_review=needs_review,
                     is_duplicate=item.get("is_duplicate", False)
                 )

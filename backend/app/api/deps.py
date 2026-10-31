@@ -75,22 +75,15 @@ def get_current_user(
 ) -> User:
     """
     Retrieves the current authenticated user.
-    If a Bearer token is provided, strictly validates it (raises 401 on invalid/expired/not found).
-    If no token is provided, creates or retrieves the default Demo/Guest user for seamless evaluation.
+    A valid Bearer token is required: a missing, invalid or expired token raises 401, so requests
+    never fall back to a shared account. Demo use goes through POST /auth/guest, which issues a
+    private guest user with its own token.
     """
     user = get_current_user_optional(auth_credentials, db)
     if user:
         return user
-
-    # Default Guest/Demo fallback user for evaluator convenience ONLY when NO token is provided
-    guest_user = db.query(User).filter(User.email == "demo@expenseinsight.app").first()
-    if not guest_user:
-        guest_user = User(
-            email="demo@expenseinsight.app",
-            hashed_password="demo_hashed_pw",
-            is_guest=True
-        )
-        db.add(guest_user)
-        db.commit()
-        db.refresh(guest_user)
-    return guest_user
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )

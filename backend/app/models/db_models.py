@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -197,6 +198,20 @@ class CashExpense(Base):
     def source_type(self) -> str:
         from ..services.accounting import AccountingPolicy
         return AccountingPolicy.classify_source(self)
+
+
+class MerchantCategoryRule(Base):
+    """A user's learned preference: this merchant always goes to this category on future statements."""
+    __tablename__ = "merchant_category_rules"
+    __table_args__ = (UniqueConstraint("user_id", "normalized_merchant", name="uq_user_merchant_rule"),)
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    normalized_merchant = Column(String(100), nullable=False)
+    category = Column(String(50), nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class BudgetSettings(Base):

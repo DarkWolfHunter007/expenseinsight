@@ -325,19 +325,23 @@ class AnalyticsService:
         frames = [baseline_df, cash_df]
         spent = self._spent_in_month(frames, period)
         remaining = round(overall - spent, 2)
-        used_pct = round(spent / overall * 100.0, 1)
+        # The tier is decided from the exact percentage: rounding first would show 100.0% (critical)
+        # for a budget that is over by a few paise.
+        raw_used_pct = spent / overall * 100.0
+        used_pct = round(raw_used_pct, 1)
 
         category_budgets = []
         for cat, limit in cat_limits.items():
             cat_spent = self._spent_in_month(frames, period, cat)
-            cat_pct = round(cat_spent / limit * 100.0, 1)
+            raw_cat_pct = cat_spent / limit * 100.0
+            cat_pct = round(raw_cat_pct, 1)
             category_budgets.append({
                 "category": cat,
                 "limit": round(limit, 2),
                 "spent": cat_spent,
                 "remaining": round(limit - cat_spent, 2),
                 "used_pct": cat_pct,
-                "status": self._budget_status(cat_pct),
+                "status": self._budget_status(raw_cat_pct),
             })
         category_budgets.sort(key=lambda c: c["used_pct"], reverse=True)
 
@@ -360,7 +364,7 @@ class AnalyticsService:
             "budget_spent": spent,
             "budget_remaining": remaining,
             "budget_used_pct": used_pct,
-            "budget_status": self._budget_status(used_pct),
+            "budget_status": self._budget_status(raw_used_pct),
             "safe_to_spend_today": round(max(0.0, remaining) / days_left, 2),
             "category_budgets": category_budgets,
             "last_month_recap": recap,

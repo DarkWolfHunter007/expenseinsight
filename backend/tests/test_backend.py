@@ -179,7 +179,7 @@ def test_sample_statement_seeding_and_analytics():
     assert "comparison_table" in compare_res.json()
 
     # Verify Decoupled Model Retrain API
-    retrain_res = client.post("/model/retrain")
+    retrain_res = client.post("/model/retrain", headers=headers)
     assert retrain_res.status_code == 200
     assert retrain_res.json()["status"] == "success"
 
