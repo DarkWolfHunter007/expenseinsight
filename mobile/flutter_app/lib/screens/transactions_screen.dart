@@ -134,6 +134,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     return ChoiceChip(
                       label: Text(cat),
                       selected: isSelected,
+                      showCheckmark: false,
                       avatar: meta != null
                           ? Icon(meta.icon, size: 14, color: isSelected ? Colors.white : meta.color)
                           : null,
@@ -141,7 +142,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
                       labelStyle: GoogleFonts.inter(
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                         color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
                       ),
                       shape: RoundedRectangleBorder(
@@ -254,6 +255,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       avatar: Icon(icon, size: 14, color: isSelected ? Colors.white : (value == 'All' ? Colors.grey : chipColor)),
       label: Text(label),
       selected: isSelected,
+      showCheckmark: false,
       selectedColor: chipColor,
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       labelStyle: GoogleFonts.inter(
