@@ -4,8 +4,26 @@ import 'package:provider/provider.dart';
 
 import '../providers/model_provider.dart';
 
-class ModelBenchmarkScreen extends StatelessWidget {
+class ModelBenchmarkScreen extends StatefulWidget {
   const ModelBenchmarkScreen({super.key});
+
+  @override
+  State<ModelBenchmarkScreen> createState() => _ModelBenchmarkScreenState();
+}
+
+class _ModelBenchmarkScreenState extends State<ModelBenchmarkScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Metrics are otherwise only loaded during onboarding, which a restored session skips.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final provider = Provider.of<ModelProvider>(context, listen: false);
+      if (provider.metrics == null && !provider.isLoading) {
+        provider.fetchMetrics();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

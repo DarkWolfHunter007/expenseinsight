@@ -2,7 +2,7 @@
 
 **ExpenseInsight** is an intelligent, privacy-first personal finance application that extracts, normalizes, categorizes, analyzes, and forecasts expenses from multi-bank PDF statements (Canara Bank e-passbooks, HDFC Bank, State Bank of India, ICICI Bank, Axis Bank, Kotak Mahindra Bank, and generic statements).
 
-Built with a **FastAPI backend** (PyMuPDF, 4-Layer Merchant Normalizer, Supervised ML Classifier, Time-Series Forecaster) and a **Flutter Web / Mobile / Desktop frontend** running in containerized production with Nginx.
+Built with a **FastAPI backend** (PyMuPDF, 4-Layer Merchant Normalizer, Supervised ML Classifier, Time-Series Forecaster) and a **Flutter Web (installable PWA) frontend** running in containerized production with Nginx.
 
 ---
 
@@ -25,7 +25,7 @@ Bank Statement PDF (1-Month to 16+ Page Multi-Month e-Passbooks)
         ↓
 [7] Time-Series Expense Forecaster (Holt-Winters / ARIMA with 90% Confidence Intervals)
         ↓
-[8] Flutter Cross-Platform Dashboard (Web / PWA via Nginx, Mobile, Windows & macOS Desktop)
+[8] Flutter Web Dashboard (installable PWA via Nginx; works in any modern browser on iOS, Android, Windows, macOS and Linux)
 ```
 
 ### Highlights
@@ -68,7 +68,7 @@ expenseinsight/
 │   │   ├── preprocessing/          # 4-Layer Merchant Normalizer & Text Cleaner
 │   │   └── models/                 # Model Artifacts (expense_classifier.joblib, model_metrics.json)
 │   ├── sample_statements/          # 6-Month HDFC, SBI, ICICI bank statement PDFs
-│   ├── tests/                      # Pytest Unit & Integration Tests (100% Passing)
+│   ├── tests/                      # Pytest Unit & Integration Tests (67 tests passing)
 │   └── requirements.txt            # Production Python Dependencies
 │
 ├── ml_training/                    # 🧪 Decoupled Offline ML Training Pipeline
@@ -159,9 +159,8 @@ cd mobile/flutter_app
 # Run on Chrome (Web / PWA):
 flutter run -d chrome
 
-# Or run natively on Desktop:
-flutter run -d windows    # Windows Desktop
-flutter run -d macos      # macOS Desktop
+# Or build the production web bundle:
+flutter build web
 ```
 
 ---
@@ -220,12 +219,12 @@ $$\text{Real Total Spending} = \text{Bank Transaction Spending} + \text{Cash Exp
 ## 🛠️ Running Automated Tests
 
 ```bash
-# Backend pytest suite (19/19 passing unit, isolation, boundary, and scenario tests)
+# Backend pytest suite (67 passing unit, isolation, boundary, and scenario tests)
 pytest backend/tests/ -v
 # (or inside Docker)
 docker compose exec backend pytest backend/tests/ -v
 
-# Flutter test suite (10/10 passing unit, provider, and widget tests)
+# Flutter test suite (49 passing unit, provider, and widget tests)
 cd mobile/flutter_app
 flutter analyze
 flutter test
@@ -233,6 +232,6 @@ flutter test
 
 ---
 
-## 🍎 macOS Setup
+## 🍎 Developing on a Mac
 
-For Apple Silicon (M1/M2/M3/M4) or Intel Mac users, consult [`SETUP_MAC.md`](SETUP_MAC.md) for full Homebrew, Docker Desktop, and Xcode setup steps.
+For Apple Silicon (M1/M2/M3/M4) or Intel Mac developers, consult [`SETUP_MAC.md`](SETUP_MAC.md) for full Homebrew and Docker Desktop setup steps (Xcode is not required; the app is web-only).

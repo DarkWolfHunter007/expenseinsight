@@ -11,6 +11,7 @@ services:
       - MODEL_PATH=/app/backend/ml/models/expense_classifier.joblib
       - METRICS_PATH=/app/backend/ml/models/model_metrics.json
       - UPLOADS_DIR=/app/data/uploads
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
       - SAMPLE_STATEMENTS_DIR=/app/backend/sample_statements
       - OFFLINE_TRAINING_MODE=true
     volumes:
