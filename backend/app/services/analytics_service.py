@@ -1,3 +1,5 @@
+import calendar
+import json
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -5,7 +7,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from ..models.db_models import CashExpense, Statement, Transaction
+from ..models.db_models import BudgetSettings, CashExpense, Statement, Transaction
 from .accounting import AccountingPolicy
 
 
@@ -210,63 +212,160 @@ class AnalyticsService:
         return df[(df["date_dt"] >= start_dt) & (df["date_dt"] <= end_dt)]
 
     BUDGET_WARNING_PCT = 80.0
+    BUDGET_CRITICAL_PCT = 90.0
     DAYS_PER_MONTH = 30.4375
+    MIN_AUTO_CATEGORY_LIMIT = 100.0
+    RECAP_WINDOW_DAYS = 7
+
+    @classmethod
+    def _budget_status(cls, used_pct: float) -> str:
+        if used_pct > 100.0:
+            return "exceeded"
+        if used_pct >= cls.BUDGET_CRITICAL_PCT:
+            return "critical"
+        if used_pct >= cls.BUDGET_WARNING_PCT:
+            return "warning"
+        return "on_track"
+
+    def _load_budget_settings(self, user_id: str) -> Dict[str, Any]:
+        defaults: Dict[str, Any] = {"auto_limits": True, "monthly_limit": None, "category_limits": {}}
+        if self.db is None:
+            return defaults
+        row = self.db.query(BudgetSettings).filter(BudgetSettings.user_id == user_id).first()
+        if row is None:
+            return defaults
+        try:
+            limits = json.loads(row.category_limits or "{}")
+        except ValueError:
+            limits = {}
+        return {
+            "auto_limits": bool(row.auto_limits),
+            "monthly_limit": row.monthly_limit,
+            "category_limits": limits,
+        }
+
+    @staticmethod
+    def _spent_in_month(frames: List[pd.DataFrame], period: pd.Period, category: Optional[str] = None) -> float:
+        total = 0.0
+        for frame in frames:
+            if frame is None or frame.empty or "amount" not in frame.columns:
+                continue
+            in_month = frame[frame["date_dt"].dt.to_period("M") == period]
+            if category is not None:
+                in_month = in_month[in_month["category"].astype(str).str.lower() == category.lower()]
+            total += float(in_month["amount"].sum())
+        return round(total, 2)
 
     def _compute_budget(
         self,
         user_id: str,
         bank_df: pd.DataFrame,
         cash_df: pd.DataFrame,
-        as_of: Optional[date] = None
+        as_of: Optional[date] = None,
+        settings: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Monthly budget indicator. The uploaded statement history is the baseline: the budget is the
-        average personal spend per day across it, scaled to a month. This month's bank + cash spending
-        is then compared against that budget so overspending can be flagged.
+        Monthly budget indicator.
+
+        Automatic mode: the uploaded statement history is the baseline, so the limit is the average
+        personal spend per day across it scaled to a month (overall and per category). A manual
+        monthly limit or manual category limits always take priority over the automatic figures.
+        Manual mode: only the limits the user pre-approved are used.
+
+        This month's bank + cash spending is compared against the limits and mapped to
+        on_track / warning (80%) / critical (90%) / exceeded (over 100%).
         """
         today = pd.Timestamp(as_of or date.today())
-        month_label = today.strftime("%Y-%m")
-        none_result = {
+        period = today.to_period("M")
+        settings = settings or self._load_budget_settings(user_id)
+        auto = bool(settings.get("auto_limits", True))
+        manual_total = settings.get("monthly_limit") or 0.0
+        manual_cats = {k: float(v) for k, v in (settings.get("category_limits") or {}).items() if float(v) > 0}
+
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        days_left = days_in_month - today.day + 1
+
+        base = {
             "monthly_budget": 0.0,
-            "budget_month": month_label,
+            "budget_month": today.strftime("%Y-%m"),
             "budget_spent": 0.0,
             "budget_remaining": 0.0,
             "budget_used_pct": 0.0,
             "budget_status": "none",
+            "budget_mode": "auto" if auto else "manual",
+            "days_left_in_month": days_left,
+            "safe_to_spend_today": 0.0,
+            "category_budgets": [],
+            "last_month_recap": None,
         }
 
         baseline_df = AccountingPolicy.filter_personal_expenses(bank_df) if not bank_df.empty else bank_df
-        if baseline_df.empty or "amount" not in baseline_df.columns:
-            return none_result
+        auto_total = 0.0
+        auto_cats: Dict[str, float] = {}
+        if auto and not baseline_df.empty and "amount" in baseline_df.columns:
+            baseline_days = max(1, (baseline_df["date_dt"].max() - baseline_df["date_dt"].min()).days + 1)
+            scale = self.DAYS_PER_MONTH / baseline_days
+            auto_total = float(baseline_df["amount"].sum()) * scale
+            if "category" in baseline_df.columns:
+                for cat, amount in baseline_df.groupby("category")["amount"].sum().items():
+                    if cat and float(amount) * scale >= self.MIN_AUTO_CATEGORY_LIMIT:
+                        auto_cats[str(cat)] = round(float(amount) * scale, 2)
 
-        baseline_days = max(1, (baseline_df["date_dt"].max() - baseline_df["date_dt"].min()).days + 1)
-        monthly_budget = round(float(baseline_df["amount"].sum()) / baseline_days * self.DAYS_PER_MONTH, 2)
-        if monthly_budget <= 0:
-            return none_result
-
-        spent = 0.0
-        for frame in (baseline_df, cash_df):
-            if frame is not None and not frame.empty and "amount" in frame.columns:
-                in_month = frame[frame["date_dt"].dt.to_period("M") == today.to_period("M")]
-                spent += float(in_month["amount"].sum())
-        spent = round(spent, 2)
-
-        used_pct = round(spent / monthly_budget * 100.0, 1)
-        if used_pct > 100.0:
-            status = "exceeded"
-        elif used_pct >= self.BUDGET_WARNING_PCT:
-            status = "warning"
+        if auto:
+            overall = manual_total or auto_total
+            cat_limits = {**auto_cats, **manual_cats}
         else:
-            status = "on_track"
+            overall = manual_total or sum(manual_cats.values())
+            cat_limits = dict(manual_cats)
 
-        return {
-            "monthly_budget": monthly_budget,
-            "budget_month": month_label,
+        overall = round(overall, 2)
+        if overall <= 0:
+            return base
+
+        frames = [baseline_df, cash_df]
+        spent = self._spent_in_month(frames, period)
+        remaining = round(overall - spent, 2)
+        used_pct = round(spent / overall * 100.0, 1)
+
+        category_budgets = []
+        for cat, limit in cat_limits.items():
+            cat_spent = self._spent_in_month(frames, period, cat)
+            cat_pct = round(cat_spent / limit * 100.0, 1)
+            category_budgets.append({
+                "category": cat,
+                "limit": round(limit, 2),
+                "spent": cat_spent,
+                "remaining": round(limit - cat_spent, 2),
+                "used_pct": cat_pct,
+                "status": self._budget_status(cat_pct),
+            })
+        category_budgets.sort(key=lambda c: c["used_pct"], reverse=True)
+
+        recap = None
+        if today.day <= self.RECAP_WINDOW_DAYS:
+            prev_period = period - 1
+            prev_spent = self._spent_in_month(frames, prev_period)
+            if prev_spent > 0:
+                diff = round(overall - prev_spent, 2)
+                recap = {
+                    "month": str(prev_period),
+                    "spent": prev_spent,
+                    "budget": overall,
+                    "difference": diff,
+                    "under_budget": diff >= 0,
+                }
+
+        base.update({
+            "monthly_budget": overall,
             "budget_spent": spent,
-            "budget_remaining": round(monthly_budget - spent, 2),
+            "budget_remaining": remaining,
             "budget_used_pct": used_pct,
-            "budget_status": status,
-        }
+            "budget_status": self._budget_status(used_pct),
+            "safe_to_spend_today": round(max(0.0, remaining) / days_left, 2),
+            "category_budgets": category_budgets,
+            "last_month_recap": recap,
+        })
+        return base
 
     def get_summary(
         self,

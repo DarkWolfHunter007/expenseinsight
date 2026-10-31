@@ -32,6 +32,7 @@ class User(Base):
     corrections = relationship("CategoryCorrection", back_populates="user", cascade="all, delete-orphan")
     forecasts = relationship("Forecast", back_populates="user", cascade="all, delete-orphan")
     cash_expenses = relationship("CashExpense", back_populates="user", cascade="all, delete-orphan")
+    budget_settings = relationship("BudgetSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 class Statement(Base):
@@ -198,3 +199,16 @@ class CashExpense(Base):
         return AccountingPolicy.classify_source(self)
 
 
+class BudgetSettings(Base):
+    """Per-user budget preferences: automatic limits from the statement baseline, or manual limits."""
+    __tablename__ = "budget_settings"
+
+    user_id = Column(String(36), ForeignKey("users.id"), primary_key=True)
+    auto_limits = Column(Boolean, default=True, nullable=False)
+    monthly_limit = Column(Float, nullable=True)  # manual overall limit (used when auto_limits is off)
+    category_limits = Column(Text, default="{}", nullable=False)  # JSON {category: amount}
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="budget_settings")

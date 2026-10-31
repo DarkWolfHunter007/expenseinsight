@@ -60,3 +60,124 @@ def test_no_baseline_means_no_budget():
     result = AnalyticsService(db=None)._compute_budget("u", EMPTY, EMPTY, date(2026, 2, 10))
     assert result["budget_status"] == "none"
     assert result["monthly_budget"] == 0.0
+
+
+# ---- critical tier, manual limits, categories, daily allowance, recap, settings API
+
+AUTO = {"auto_limits": True, "monthly_limit": None, "category_limits": {}}
+
+
+def _budget_with(settings, cash_rows, as_of):
+    cash = _df(cash_rows) if cash_rows else EMPTY
+    return AnalyticsService(db=None)._compute_budget("u", BASELINE, cash, as_of, settings=settings)
+
+
+def test_critical_between_ninety_and_hundred_percent():
+    result = _budget_with(AUTO, [("2026-02-05", 2900.0)], date(2026, 2, 10))
+    assert 90.0 <= result["budget_used_pct"] <= 100.0
+    assert result["budget_status"] == "critical"
+
+
+def test_manual_monthly_limit_overrides_automatic_figure():
+    settings = {"auto_limits": True, "monthly_limit": 1000.0, "category_limits": {}}
+    result = _budget_with(settings, [("2026-02-05", 950.0)], date(2026, 2, 10))
+    assert result["monthly_budget"] == 1000.0
+    assert result["budget_status"] == "critical"
+
+
+def test_manual_mode_uses_only_preapproved_limits():
+    settings = {"auto_limits": False, "monthly_limit": None, "category_limits": {"Food": 500.0, "Travel": 300.0}}
+    result = _budget_with(settings, [], date(2026, 2, 10))
+    assert result["budget_mode"] == "manual"
+    assert result["monthly_budget"] == 800.0
+    assert {c["category"] for c in result["category_budgets"]} == {"Food", "Travel"}
+
+
+def test_manual_mode_without_any_limit_has_no_budget():
+    settings = {"auto_limits": False, "monthly_limit": None, "category_limits": {}}
+    assert _budget_with(settings, [], date(2026, 2, 10))["budget_status"] == "none"
+
+
+def test_category_budget_tracks_its_own_spending():
+    settings = {"auto_limits": False, "monthly_limit": 5000.0, "category_limits": {"Food": 500.0}}
+    result = _budget_with(settings, [("2026-02-05", 480.0)], date(2026, 2, 10))
+    food = result["category_budgets"][0]
+    assert food["category"] == "Food"
+    assert food["spent"] == 480.0
+    assert food["status"] == "critical"
+
+
+def test_safe_to_spend_today_divides_remaining_by_days_left():
+    result = _budget_with(AUTO, [("2026-02-05", 1000.0)], date(2026, 2, 10))
+    days_left = 28 - 10 + 1
+    assert result["days_left_in_month"] == days_left
+    assert result["safe_to_spend_today"] == round(result["budget_remaining"] / days_left, 2)
+
+
+def test_safe_to_spend_is_zero_once_exceeded():
+    result = _budget_with(AUTO, [("2026-02-05", 9000.0)], date(2026, 2, 10))
+    assert result["budget_status"] == "exceeded"
+    assert result["safe_to_spend_today"] == 0.0
+
+
+def test_month_end_recap_only_in_first_days_of_next_month():
+    early = _budget_with(AUTO, [("2026-02-05", 1000.0)], date(2026, 3, 2))
+    assert early["last_month_recap"]["month"] == "2026-02"
+    assert early["last_month_recap"]["under_budget"] is True
+    assert early["last_month_recap"]["spent"] == 1000.0
+
+    late = _budget_with(AUTO, [("2026-02-05", 1000.0)], date(2026, 3, 20))
+    assert late["last_month_recap"] is None
+
+
+def test_recap_reports_overspend():
+    result = _budget_with(AUTO, [("2026-02-05", 9000.0)], date(2026, 3, 2))
+    assert result["last_month_recap"]["under_budget"] is False
+    assert result["last_month_recap"]["difference"] < 0
+
+
+def _headers():
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+
+    client = TestClient(app)
+    token = client.post("/auth/guest").json()["access_token"]
+    return client, {"Authorization": f"Bearer {token}"}
+
+
+def test_settings_default_to_automatic():
+    client, headers = _headers()
+    body = client.get("/budget/settings", headers=headers).json()
+    assert body == {"auto_limits": True, "monthly_limit": None, "category_limits": {}}
+
+
+def test_settings_round_trip_and_are_per_user():
+    client, headers = _headers()
+    saved = client.put(
+        "/budget/settings",
+        json={"auto_limits": False, "monthly_limit": 4000, "category_limits": {" Food ": 1500, "Travel": 0}},
+        headers=headers,
+    )
+    assert saved.status_code == 200
+    assert saved.json()["category_limits"] == {"Food": 1500.0}
+    assert client.get("/budget/settings", headers=headers).json()["monthly_limit"] == 4000.0
+
+    _, other_headers = _headers()
+    assert client.get("/budget/settings", headers=other_headers).json()["auto_limits"] is True
+
+
+def test_settings_reject_negative_limits():
+    client, headers = _headers()
+    res = client.put("/budget/settings", json={"monthly_limit": -5}, headers=headers)
+    assert res.status_code == 422
+    res = client.put("/budget/settings", json={"category_limits": {"Food": -1}}, headers=headers)
+    assert res.status_code == 422
+
+
+def test_summary_reflects_saved_manual_limit():
+    client, headers = _headers()
+    client.put("/budget/settings", json={"auto_limits": False, "monthly_limit": 1000}, headers=headers)
+    client.post("/cash-expenses", json={"amount": 950, "category": "Food", "expense_date": date.today().isoformat()}, headers=headers)
+    summary = client.get("/analytics/summary", headers=headers).json()
+    assert summary["monthly_budget"] == 1000.0
+    assert summary["budget_status"] == "critical"

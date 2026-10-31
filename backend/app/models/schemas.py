@@ -165,6 +165,23 @@ class RecurringExpenseItem(BaseModel):
     last_payment_date: str
     occurrences: int
 
+class CategoryBudgetItem(BaseModel):
+    category: str
+    limit: float
+    spent: float
+    remaining: float
+    used_pct: float
+    status: str
+
+
+class LastMonthRecap(BaseModel):
+    month: str
+    spent: float
+    budget: float
+    difference: float  # positive = under budget, negative = over
+    under_budget: bool
+
+
 class AnalyticsSummaryResponse(BaseModel):
     total_expense: float
     total_income: float
@@ -190,6 +207,11 @@ class AnalyticsSummaryResponse(BaseModel):
     budget_remaining: float = 0.0
     budget_used_pct: float = 0.0
     budget_status: str = "none"
+    budget_mode: str = "auto"
+    days_left_in_month: int = 0
+    safe_to_spend_today: float = 0.0
+    category_budgets: List["CategoryBudgetItem"] = []
+    last_month_recap: Optional["LastMonthRecap"] = None
 
 
 # ----------------- Forecast Schemas -----------------
@@ -326,3 +348,24 @@ class CashExpenseResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ----------------- Budget Settings Schemas -----------------
+class BudgetSettingsPayload(BaseModel):
+    auto_limits: bool = True
+    monthly_limit: Optional[float] = Field(default=None, ge=0, le=1_000_000_000)
+    category_limits: Dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("category_limits")
+    @classmethod
+    def validate_category_limits(cls, v: Dict[str, float]) -> Dict[str, float]:
+        cleaned: Dict[str, float] = {}
+        for name, amount in v.items():
+            key = name.strip()
+            if not key:
+                continue
+            if amount < 0 or amount > 1_000_000_000:
+                raise ValueError("Category limits must be between 0 and 1,000,000,000")
+            if amount > 0:
+                cleaned[key] = round(float(amount), 2)
+        return cleaned

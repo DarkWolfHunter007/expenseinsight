@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from backend.app.database.session import Base, engine, get_db
 from backend.app.models.db_models import Merchant, User
 from backend.app.api.api import api_router
-from backend.app.api.endpoints import analytics, auth, cash_expenses, forecast, model, statements, transactions
+from backend.app.api.endpoints import analytics, auth, budget, cash_expenses, forecast, model, statements, transactions
 from backend.ml.preprocessing.merchant_normalizer import DEFAULT_MERCHANT_KB
 
 # Create all database tables
@@ -52,6 +52,7 @@ app.include_router(cash_expenses.router, prefix="/cash-expenses", tags=["Cash Ex
 app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 app.include_router(forecast.router, prefix="/forecast", tags=["Forecast"])
 app.include_router(model.router, prefix="/model", tags=["ML Model"])
+app.include_router(budget.router, prefix="/budget", tags=["Budget"])
 
 # Mount sample statements and uploads directory
 samples_dir = os.getenv("SAMPLE_STATEMENTS_DIR", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sample_statements")))
