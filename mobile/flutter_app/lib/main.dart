@@ -18,16 +18,33 @@ void main() async {
   final authProvider = AuthProvider();
   await authProvider.init();
 
+  final statementProvider = StatementProvider();
+  final transactionProvider = TransactionProvider();
+  final cashExpenseProvider = CashExpenseProvider();
+  final analyticsProvider = AnalyticsProvider();
+  final forecastProvider = ForecastProvider();
+  final modelProvider = ModelProvider();
+
+  // Onboarding loads this data after sign-in, so a restored session must load it here.
+  if (authProvider.isAuthenticated && !authProvider.user!.isGuest) {
+    statementProvider.fetchStatements();
+    transactionProvider.fetchTransactions();
+    cashExpenseProvider.fetchCashExpenses();
+    analyticsProvider.fetchAnalytics();
+    forecastProvider.fetchForecast();
+    modelProvider.fetchMetrics();
+  }
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authProvider),
-        ChangeNotifierProvider(create: (_) => StatementProvider()),
-        ChangeNotifierProvider(create: (_) => TransactionProvider()),
-        ChangeNotifierProvider(create: (_) => CashExpenseProvider()),
-        ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
-        ChangeNotifierProvider(create: (_) => ForecastProvider()),
-        ChangeNotifierProvider(create: (_) => ModelProvider()),
+        ChangeNotifierProvider.value(value: statementProvider),
+        ChangeNotifierProvider.value(value: transactionProvider),
+        ChangeNotifierProvider.value(value: cashExpenseProvider),
+        ChangeNotifierProvider.value(value: analyticsProvider),
+        ChangeNotifierProvider.value(value: forecastProvider),
+        ChangeNotifierProvider.value(value: modelProvider),
       ],
       child: const ExpenseInsightApp(),
     ),
