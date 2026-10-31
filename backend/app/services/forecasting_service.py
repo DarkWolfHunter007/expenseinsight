@@ -126,7 +126,11 @@ class ForecastingService:
                 "explanation_bullets": ["Upload bank statements or record cash expenses to view predictive spending forecasts."]
             }
 
-        forecast_res = self.forecaster.generate_forecast(txn_dicts)
+        # Months are only complete where the bank data really covers them; cash logged after the
+        # last statement date must not make a month that has no bank data look complete.
+        bank_dates = [str(t.date) for t in txns if t.date]
+        coverage = (min(bank_dates), max(bank_dates)) if bank_dates else None
+        forecast_res = self.forecaster.generate_forecast(txn_dicts, coverage)
 
         # Optionally persist to database
         if persist:

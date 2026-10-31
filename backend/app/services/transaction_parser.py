@@ -256,23 +256,34 @@ class TransactionParser:
         blocks: List[Tuple[str, List[str]]] = []
         current_date: Optional[str] = None
         current_lines: List[str] = []
+        current_has_amount = False
+        amount_pat = re.compile(r'\d[\d,]*\.\d{2}')
 
         for line in lines:
             s = line.strip()
             if not s:
                 continue
             m = date_regex.match(s)
-            # A wrapped narration fragment like "4/09/2025 09:08:00" is not a new row
-            if m and re.fullmatch(r'\d{1,2}:\d{2}(?::\d{2})?', s[m.end():].strip()):
-                m = None
+            if m:
+                rest_of_line = s[m.end():].strip()
+                # A wrapped narration fragment like "4/09/2025 09:08:00" is not a new row
+                if re.fullmatch(r'\d{1,2}:\d{2}(?::\d{2})?', rest_of_line):
+                    m = None
+                # Neither is a bare date on its own line while the current row has not shown its
+                # amount yet: a real row's date only appears after the previous row's amounts.
+                elif not rest_of_line and current_date and not current_has_amount:
+                    m = None
             if m:
                 if current_date and current_lines:
                     blocks.append((current_date, current_lines))
                 current_date = m.group(1)
                 rest = s[m.end():].strip()
                 current_lines = [rest] if rest else []
+                current_has_amount = bool(rest and amount_pat.search(rest))
             elif current_date:
                 current_lines.append(s)
+                if amount_pat.search(s):
+                    current_has_amount = True
 
         if current_date and current_lines:
             blocks.append((current_date, current_lines))

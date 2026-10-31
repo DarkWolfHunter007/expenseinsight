@@ -19,10 +19,22 @@ class ExpenseForecaster:
     def __init__(self, smoothing_level: float = 0.4):
         self.smoothing_level = smoothing_level
 
-    def _prepare_monthly_category_matrix(self, transactions: List[Dict[str, Any]]) -> pd.DataFrame:
+    MIN_COMPLETE_MONTHS = 3
+
+    def _prepare_monthly_category_matrix(
+        self,
+        transactions: List[Dict[str, Any]],
+        coverage: Optional[Tuple[str, str]] = None
+    ) -> pd.DataFrame:
         """
         Converts list of transaction dicts into a monthly aggregated dataframe by category.
         Filters for expense transactions only (excluding income and internal transfers).
+
+        Months with no spending are filled with 0 so the series stays evenly spaced. Months the data
+        only partly covers (a statement that starts or ends mid-month) are left out of the model, as
+        a short month would look like a spending collapse. `coverage` is the (start, end) date range
+        that is fully observed; it defaults to the span of the supplied transactions. Partial months
+        are only dropped while at least MIN_COMPLETE_MONTHS complete months remain.
         """
         if not transactions:
             return pd.DataFrame()
@@ -34,6 +46,11 @@ class ExpenseForecaster:
             df["date_dt"] = pd.to_datetime(df["date"])
         else:
             return pd.DataFrame()
+
+        if coverage:
+            cov_start, cov_end = pd.Timestamp(coverage[0]), pd.Timestamp(coverage[1])
+        else:
+            cov_start, cov_end = df["date_dt"].min(), df["date_dt"].max()
 
         # Exclude income and transfers from spending forecast
         if "transaction_type" in df.columns:
@@ -55,6 +72,14 @@ class ExpenseForecaster:
             fill_value=0.0
         )
         pivot = pivot.sort_index()
+        pivot = pivot.reindex(pd.period_range(pivot.index.min(), pivot.index.max(), freq="M"), fill_value=0.0)
+
+        complete = [
+            p for p in pivot.index
+            if p.start_time.normalize() >= cov_start.normalize() and p.end_time.normalize() <= cov_end.normalize()
+        ]
+        if len(complete) >= self.MIN_COMPLETE_MONTHS:
+            pivot = pivot.loc[complete]
         return pivot
 
     def _forecast_series(self, values: np.ndarray, horizon: int = 1) -> Tuple[float, float, float]:
@@ -124,11 +149,15 @@ class ExpenseForecaster:
         return (round(pred, 2), round(lower, 2), round(upper, 2))
 
 
-    def generate_forecast(self, transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate_forecast(
+        self,
+        transactions: List[Dict[str, Any]],
+        coverage: Optional[Tuple[str, str]] = None
+    ) -> Dict[str, Any]:
         """
         Generates full next-month forecast, category breakdown, 7-day and 30-day projections.
         """
-        pivot = self._prepare_monthly_category_matrix(transactions)
+        pivot = self._prepare_monthly_category_matrix(transactions, coverage)
         
         num_months = len(pivot)
         if num_months == 0:
@@ -205,7 +234,7 @@ class ExpenseForecaster:
         explanation_bullets = [
             f"Expected total next month spending: ₹{total_predicted:,.0f} (range: ₹{total_lower:,.0f} – ₹{total_upper:,.0f}).",
             f"Major spending categories: {', '.join(top_cat_names)}." if top_cat_names else "Balanced across categories.",
-            f"Based on exponential smoothing over {num_months} month(s) of transaction patterns.",
+            f"Based on an ARIMA time-series model over {num_months} complete month(s); partly covered months are left out.",
             f"Estimated next 7 days spending: ₹{next_7_days:,.0f}."
         ]
 

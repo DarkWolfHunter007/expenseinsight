@@ -181,3 +181,50 @@ def test_summary_reflects_saved_manual_limit():
     summary = client.get("/analytics/summary", headers=headers).json()
     assert summary["monthly_budget"] == 1000.0
     assert summary["budget_status"] == "critical"
+
+
+# ---- forecast input: gaps filled, partly covered months left out
+
+def _txn(day, amount, category="Food"):
+    return {"date": day, "amount": amount, "category": category, "transaction_type": "expense", "cr_dr": "DR"}
+
+
+def _forecaster():
+    from backend.ml.forecasting.forecaster import ExpenseForecaster
+
+    return ExpenseForecaster()
+
+
+FULL_MONTHS = [_txn(f"2026-{m:02d}-15", 100.0 * m) for m in (1, 2, 3, 4, 5)]
+
+
+def test_forecast_fills_a_missing_month_with_zero():
+    txns = [_txn("2026-01-15", 100), _txn("2026-02-15", 100), _txn("2026-04-15", 100), _txn("2026-05-15", 100)]
+    pivot = _forecaster()._prepare_monthly_category_matrix(txns, ("2026-01-01", "2026-05-31"))
+    assert [str(p) for p in pivot.index] == ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"]
+    assert pivot.loc["2026-03", "Food"] == 0.0
+
+
+def test_forecast_leaves_out_a_partly_covered_last_month():
+    txns = FULL_MONTHS + [_txn("2026-06-03", 50)]
+    pivot = _forecaster()._prepare_monthly_category_matrix(txns, ("2026-01-01", "2026-06-04"))
+    assert "2026-06" not in [str(p) for p in pivot.index]
+    assert len(pivot) == 5
+
+
+def test_forecast_leaves_out_a_partly_covered_first_month():
+    txns = [_txn("2026-01-20", 50)] + [_txn(f"2026-{m:02d}-15", 100.0) for m in (2, 3, 4, 5)]
+    pivot = _forecaster()._prepare_monthly_category_matrix(txns, ("2026-01-11", "2026-05-31"))
+    assert "2026-01" not in [str(p) for p in pivot.index]
+
+
+def test_forecast_keeps_partial_months_when_history_is_short():
+    txns = [_txn("2026-01-15", 100), _txn("2026-02-10", 100)]
+    pivot = _forecaster()._prepare_monthly_category_matrix(txns, ("2026-01-01", "2026-02-10"))
+    assert len(pivot) == 2
+
+
+def test_forecast_explanation_names_arima():
+    result = _forecaster().generate_forecast(FULL_MONTHS, ("2026-01-01", "2026-05-31"))
+    assert "ARIMA" in result["explanation"]
+    assert "exponential smoothing" not in result["explanation"]

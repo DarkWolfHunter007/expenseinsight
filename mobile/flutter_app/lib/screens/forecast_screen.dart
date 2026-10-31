@@ -179,7 +179,7 @@ class _ForecastScreenState extends State<ForecastScreen> {
                               ),
                             ),
                             Text(
-                              'Calculated using Holt-Winters exponential smoothing across ${forecast.historicalMonthsCount} months of spending history (bank + cash).',
+                              'Calculated with an ARIMA time-series model across ${forecast.historicalMonthsCount} complete months of spending history (bank + cash).',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 color: isDark ? Colors.white70 : const Color(0xFF475569),

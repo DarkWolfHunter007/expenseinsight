@@ -59,3 +59,30 @@ def test_truncated_kerala_st_payee_is_transport_not_electricity():
     assert (bus[1], bus[2]) == ("ksrtc", "Travel")
     bill = normalizer.normalize("UPI/DR/1/KSEB LTD/CNRB/**1@OKSBI/UPI")
     assert (bill[1], bill[2]) == ("kerala_state_electricity", "Bills")
+
+
+def test_bare_date_inside_a_wrapped_narration_does_not_split_the_row():
+    text = """Date
+Particulars
+Deposits
+Withdrawals
+Balance
+Opening Balance
+10,000.00
+15-01-2026
+ATM WDL-CNRB ATM TVM 4908
+15/01/2026
+Chq:
+3,000.00
+7,000.00
+16-01-2026
+SMS CHARGES ON ACTUAL BASIS
+Chq:
+12.00
+6,988.00
+"""
+    txns = TransactionParser().parse_from_blocks(text)
+    assert [(t["date"], t["amount"], t["balance"]) for t in txns] == [
+        ("2026-01-15", 3000.0, 7000.0),
+        ("2026-01-16", 12.0, 6988.0),
+    ]
