@@ -102724,7 +102724,7 @@ o=A.G(g.c,h,h,h,A.X().$3$color$fontSize$fontWeight(B.av,13,B.v),h,h,h)
 n=g.d
 m=i.b
 l=t.p
-r=A.ar(h,A.aB(A.b([B.Px,B.bH,A.bs(A.aC(A.b([o,A.G("Calculated using Holt-Winters exponential smoothing across "+n+" months of spending history (bank + cash).",h,h,h,A.X().$2$color$fontSize(m?B.O:B.dB,11),h,h,h)],l),B.A,B.j,B.l),1)],l),B.o,B.j,B.l,0),B.k,h,new A.ao(s,h,q,r,h,h,B.u),h,h,h,h,B.cS,h,h,h)
+r=A.ar(h,A.aB(A.b([B.Px,B.bH,A.bs(A.aC(A.b([o,A.G("Calculated with an ARIMA time-series model across "+n+" complete months of spending history (bank + cash).",h,h,h,A.X().$2$color$fontSize(m?B.O:B.dB,11),h,h,h)],l),B.A,B.j,B.l),1)],l),B.o,B.j,B.l,0),B.k,h,new A.ao(s,h,q,r,h,h,B.u),h,h,h,h,B.cS,h,h,h)
 q=A.aa(20)
 s=A.b([new A.bE(0,B.X,B.av.aO(0.3),B.k8,16)],t.V)
 n=A.G("NEXT MONTH ESTIMATE",h,h,h,A.X().$4$color$fontSize$fontWeight$letterSpacing(B.O,12,B.v,1.1),h,h,h)
@@ -102869,11 +102869,11 @@ q=r?B.a1:B.f
 p=A.aa(16)
 o=A.c_(r?B.N:B.Y,B.n,1)
 n=A.G("Continuous Learning Retraining",h,h,h,A.c1().$2$fontSize$fontWeight(14,B.v),h,h,h)
-m=A.G("Re-fit model weights incorporating user manual corrections from feedback loop.",h,h,h,A.X().$2$color$fontSize(B.Z,12),h,h,h)
+m=A.G("Saves your category corrections for the next offline model build. Your corrections already apply to your own future uploads, and the model itself is not changed here.",h,h,h,A.X().$2$color$fontSize(B.Z,12),h,h,h)
 r=b.d
 j=r?h:new A.aCy(b,a)
 i=r?B.a_G:B.Ps
-k.push(A.ar(h,A.aC(A.b([n,B.c_,m,B.oy,A.ca(A.wp(i,h,A.G(r?"Retraining...":"Retrain ML Model Now",h,h,h,h,h,h,h),j,h),h,1/0)],l),B.A,B.j,B.l),B.k,h,new A.ao(q,h,o,p,h,h,B.u),h,h,h,h,B.db,h,h,h))
+k.push(A.ar(h,A.aC(A.b([n,B.c_,m,B.oy,A.ca(A.wp(i,h,A.G(r?"Saving...":"Save feedback for next model build",h,h,h,h,h,h,h),j,h),h,1/0)],l),B.A,B.j,B.l),B.k,h,new A.ao(q,h,o,p,h,h,B.u),h,h,h,h,B.db,h,h,h))
 k.push(B.b1)
 return A.lJ(A.aC(k,B.A,B.j,B.l),B.cd,B.aa)},
 $S:631}
@@ -102899,7 +102899,7 @@ return A.p(q.a.m4(),$async$$0)
 case 2:o=b
 n=q.b
 if(n.e!=null){n=n.a9(t.Pu).f
-p=A.G(o?"Model successfully retrained!":"Failed to retrain model. Ensure backend is reachable.",null,null,null,null,null,null,null)
+p=A.G(o?"Feedback saved. The model is rebuilt offline; your corrections already apply to your future uploads.":"Could not save feedback. Ensure the backend is reachable and you are signed in.",null,null,null,null,null,null,null)
 n.iu(A.ku(null,null,null,o?B.p:B.a7,B.cj,B.E,null,p,null,B.ba,null,null,null,null,null,null,null,null,null,null))}return A.J(null,r)}})
 return A.K($async$$0,r)},
 $S:10}
