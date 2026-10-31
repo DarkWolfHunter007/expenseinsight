@@ -262,6 +262,9 @@ class TransactionParser:
             if not s:
                 continue
             m = date_regex.match(s)
+            # A wrapped narration fragment like "4/09/2025 09:08:00" is not a new row
+            if m and re.fullmatch(r'\d{1,2}:\d{2}(?::\d{2})?', s[m.end():].strip()):
+                m = None
             if m:
                 if current_date and current_lines:
                     blocks.append((current_date, current_lines))
@@ -276,6 +279,9 @@ class TransactionParser:
 
         parsed_transactions = []
         seen_keys: Set[str] = set()
+
+        ob = re.search(r'Opening\s+Balance\s*(\d{1,3}(?:,\d{3})*\.\d{2})', full_text, re.IGNORECASE)
+        prev_balance: Optional[float] = self._parse_amount(ob.group(1)) if ob else None
 
         for dt_str, blk_lines in blocks:
             norm_date = self._normalize_date(dt_str)
@@ -303,7 +309,7 @@ class TransactionParser:
             # Extract decimal amounts
             amounts = re.findall(r'(?<!\d)(\d{1,3}(?:,\d{3})*\.\d{2})(?!\d)', combined_text)
             if not amounts:
-                amounts = re.findall(r'(?<!\d)(\d+(?:\.\d{2})?)(?!\d)', combined_text)
+                amounts = re.findall(r'(?<!\d)(\d{1,9}(?:\.\d{2})?)(?!\d)', combined_text)
 
             if not amounts:
                 continue
@@ -334,6 +340,15 @@ class TransactionParser:
 
             if not amt_val or amt_val <= 0:
                 continue
+
+            # The running balance is authoritative for direction when the chain is intact
+            if bal_val is not None and prev_balance is not None:
+                if abs(prev_balance + amt_val - bal_val) < 0.01:
+                    cr_dr = "CR"
+                elif abs(prev_balance - amt_val - bal_val) < 0.01:
+                    cr_dr = "DR"
+            if bal_val is not None:
+                prev_balance = bal_val
 
             # Clean raw description by removing amounts, page numbers, and reference tags
             desc_lines = []
