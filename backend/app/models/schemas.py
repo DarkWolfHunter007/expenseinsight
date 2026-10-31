@@ -184,6 +184,12 @@ class AnalyticsSummaryResponse(BaseModel):
     bank_spending: float = 0.0
     cash_spending: float = 0.0
     total_spending: float = 0.0
+    monthly_budget: float = 0.0
+    budget_month: Optional[str] = None
+    budget_spent: float = 0.0
+    budget_remaining: float = 0.0
+    budget_used_pct: float = 0.0
+    budget_status: str = "none"
 
 
 # ----------------- Forecast Schemas -----------------

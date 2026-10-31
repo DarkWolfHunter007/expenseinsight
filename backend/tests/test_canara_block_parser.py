@@ -49,3 +49,13 @@ def test_balance_chain_decides_credit_or_debit():
     txns = _parse()
     assert [t["cr_dr"] for t in txns] == ["CR", "CR", "DR"]
     assert txns[1]["amount"] == 26.0
+
+
+def test_truncated_kerala_st_payee_is_transport_not_electricity():
+    from backend.ml.preprocessing.merchant_normalizer import MerchantNormalizer
+
+    normalizer = MerchantNormalizer()
+    bus = normalizer.normalize("UPI/DR/637537435728/KERALA ST/YESB/**DQR01@YBL/PAYM ENT")
+    assert (bus[1], bus[2]) == ("ksrtc", "Travel")
+    bill = normalizer.normalize("UPI/DR/1/KSEB LTD/CNRB/**1@OKSBI/UPI")
+    assert (bill[1], bill[2]) == ("kerala_state_electricity", "Bills")

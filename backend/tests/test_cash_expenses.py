@@ -282,7 +282,7 @@ class TestCashExpenseAnalytics:
             json={"amount": 350.0, "category": "Transport", "expense_date": "2026-04-30"},
             headers=headers,
         )
-        # 4. 2026-05-01 (1 day after end date) -> MUST BE EXCLUDED
+        # 4. 2026-05-01 (1 day after end date) -> MUST BE INCLUDED (statement is the baseline, later cash adds to it)
         client.post(
             "/cash-expenses",
             json={"amount": 400.0, "category": "Shopping", "expense_date": "2026-05-01"},
@@ -292,10 +292,10 @@ class TestCashExpenseAnalytics:
         # Query summary for the statement period
         summary = client.get("/analytics/summary", headers=headers).json()
         assert summary["bank_spending"] == 2000.0
-        # Only 250.0 + 350.0 = 600.0 should be included! 100 (Mar 31) and 400 (May 1) must be excluded.
-        assert summary["cash_spending"] == 600.0
-        assert summary["total_spending"] == 2600.0
-        assert summary["total_expense"] == 2600.0
+        # 250 + 350 + 400 (May 1, after the statement) = 1000.0; 100 (Mar 31, before it) stays excluded.
+        assert summary["cash_spending"] == 1000.0
+        assert summary["total_spending"] == 3000.0
+        assert summary["total_expense"] == 3000.0
 
     def test_multi_month_range_aggregation(self):
         headers, _ = get_authenticated_user()

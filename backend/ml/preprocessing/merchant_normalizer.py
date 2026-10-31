@@ -270,8 +270,14 @@ DEFAULT_MERCHANT_KB = {
         "default_category": "Bills",
         "type": "expense"
     },
+    "KSRTC": {
+        # Banks cut UPI payee names to 9 characters, so "KERALA ST" is almost always the road transport corporation
+        "aliases": ["ksrtc", "kerala st", "kerala state road transport"],
+        "default_category": "Travel",
+        "type": "expense"
+    },
     "Kerala State Electricity": {
-        "aliases": ["kerala st", "kseb", "kerala state electricity", "kerala electricity board"],
+        "aliases": ["kseb", "kerala state electricity", "kerala electricity board"],
         "default_category": "Bills",
         "type": "expense"
     },

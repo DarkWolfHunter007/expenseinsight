@@ -139,6 +139,12 @@ class AnalyticsSummaryModel {
   final double bankSpending;
   final double cashSpending;
   final double totalSpending;
+  final double monthlyBudget;
+  final String? budgetMonth;
+  final double budgetSpent;
+  final double budgetRemaining;
+  final double budgetUsedPct;
+  final String budgetStatus; // none | on_track | warning | exceeded
 
   AnalyticsSummaryModel({
     required this.totalExpense,
@@ -159,6 +165,12 @@ class AnalyticsSummaryModel {
     this.bankSpending = 0.0,
     this.cashSpending = 0.0,
     this.totalSpending = 0.0,
+    this.monthlyBudget = 0.0,
+    this.budgetMonth,
+    this.budgetSpent = 0.0,
+    this.budgetRemaining = 0.0,
+    this.budgetUsedPct = 0.0,
+    this.budgetStatus = 'none',
   });
 
   factory AnalyticsSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -192,6 +204,12 @@ class AnalyticsSummaryModel {
       bankSpending: (json['bank_spending'] as num?)?.toDouble() ?? 0.0,
       cashSpending: (json['cash_spending'] as num?)?.toDouble() ?? 0.0,
       totalSpending: (json['total_spending'] as num?)?.toDouble() ?? exp,
+      monthlyBudget: (json['monthly_budget'] as num?)?.toDouble() ?? 0.0,
+      budgetMonth: json['budget_month'],
+      budgetSpent: (json['budget_spent'] as num?)?.toDouble() ?? 0.0,
+      budgetRemaining: (json['budget_remaining'] as num?)?.toDouble() ?? 0.0,
+      budgetUsedPct: (json['budget_used_pct'] as num?)?.toDouble() ?? 0.0,
+      budgetStatus: json['budget_status'] ?? 'none',
     );
   }
 }

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
@@ -180,6 +180,11 @@ class AnalyticsService:
         if stmt_start or stmt_end or bank_dates:
             min_candidates = [d for d in [stmt_start, (min(bank_dates) if bank_dates else None)] if d]
             max_candidates = [d for d in [stmt_end, (max(bank_dates) if bank_dates else None)] if d]
+            # The statement is the baseline: cash logged after it extends the window, cash before it does not
+            last_baseline = max(max_candidates) if max_candidates else None
+            later_cash = [d for d in cash_dates if last_baseline and d > last_baseline]
+            if later_cash:
+                max_candidates.append(max(later_cash))
             eff_start = min(min_candidates) if min_candidates else None
             eff_end = max(max_candidates) if max_candidates else None
             return eff_start, eff_end
@@ -204,11 +209,71 @@ class AnalyticsService:
         end_dt = pd.Timestamp(end_date)
         return df[(df["date_dt"] >= start_dt) & (df["date_dt"] <= end_dt)]
 
+    BUDGET_WARNING_PCT = 80.0
+    DAYS_PER_MONTH = 30.4375
+
+    def _compute_budget(
+        self,
+        user_id: str,
+        bank_df: pd.DataFrame,
+        cash_df: pd.DataFrame,
+        as_of: Optional[date] = None
+    ) -> Dict[str, Any]:
+        """
+        Monthly budget indicator. The uploaded statement history is the baseline: the budget is the
+        average personal spend per day across it, scaled to a month. This month's bank + cash spending
+        is then compared against that budget so overspending can be flagged.
+        """
+        today = pd.Timestamp(as_of or date.today())
+        month_label = today.strftime("%Y-%m")
+        none_result = {
+            "monthly_budget": 0.0,
+            "budget_month": month_label,
+            "budget_spent": 0.0,
+            "budget_remaining": 0.0,
+            "budget_used_pct": 0.0,
+            "budget_status": "none",
+        }
+
+        baseline_df = AccountingPolicy.filter_personal_expenses(bank_df) if not bank_df.empty else bank_df
+        if baseline_df.empty or "amount" not in baseline_df.columns:
+            return none_result
+
+        baseline_days = max(1, (baseline_df["date_dt"].max() - baseline_df["date_dt"].min()).days + 1)
+        monthly_budget = round(float(baseline_df["amount"].sum()) / baseline_days * self.DAYS_PER_MONTH, 2)
+        if monthly_budget <= 0:
+            return none_result
+
+        spent = 0.0
+        for frame in (baseline_df, cash_df):
+            if frame is not None and not frame.empty and "amount" in frame.columns:
+                in_month = frame[frame["date_dt"].dt.to_period("M") == today.to_period("M")]
+                spent += float(in_month["amount"].sum())
+        spent = round(spent, 2)
+
+        used_pct = round(spent / monthly_budget * 100.0, 1)
+        if used_pct > 100.0:
+            status = "exceeded"
+        elif used_pct >= self.BUDGET_WARNING_PCT:
+            status = "warning"
+        else:
+            status = "on_track"
+
+        return {
+            "monthly_budget": monthly_budget,
+            "budget_month": month_label,
+            "budget_spent": spent,
+            "budget_remaining": round(monthly_budget - spent, 2),
+            "budget_used_pct": used_pct,
+            "budget_status": status,
+        }
+
     def get_summary(
         self,
         user_id: str,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
+        as_of: Optional[date] = None
     ) -> Dict[str, Any]:
         """
         Calculates high-level spending analytics summary combining Bank Transactions
@@ -266,7 +331,8 @@ class AnalyticsService:
                 "recurring_expenses": [],
                 "bank_spending": 0.0,
                 "cash_spending": 0.0,
-                "total_spending": 0.0
+                "total_spending": 0.0,
+                **self._compute_budget(user_id, bank_df, cash_df, as_of)
             }
 
         # Determine authoritative effective date range
@@ -392,7 +458,8 @@ class AnalyticsService:
             "recurring_expenses": recurring,
             "bank_spending": round(bank_spending, 2),
             "cash_spending": round(cash_spending, 2),
-            "total_spending": total_spending
+            "total_spending": total_spending,
+            **self._compute_budget(user_id, bank_df, cash_df, as_of)
         }
 
     def get_monthly_spending(
