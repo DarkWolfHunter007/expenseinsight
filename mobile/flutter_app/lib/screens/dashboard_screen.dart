@@ -15,6 +15,7 @@ import '../providers/statement_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/add_edit_cash_expense_dialog.dart';
 import '../widgets/bank_statement_header.dart';
+import '../widgets/budget_banners.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/category_donut_chart.dart';
 import '../widgets/install_guide_dialog.dart';
@@ -24,6 +25,7 @@ import '../widgets/recurring_subscriptions_card.dart';
 import '../widgets/server_settings_dialog.dart';
 import '../widgets/spending_metric_card.dart';
 import '../widgets/transaction_tile.dart';
+import 'budget_settings_screen.dart';
 import 'forecast_screen.dart';
 import 'review_uncertain_screen.dart';
 import 'transactions_screen.dart';
@@ -180,6 +182,14 @@ class DashboardScreen extends StatelessWidget {
             },
           ),
           IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
+            ),
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Budget & Alerts',
+          ),
+          IconButton(
             onPressed: () => AddEditCashExpenseDialog.show(context),
             icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF10B981)),
             tooltip: 'Add Expense',
@@ -240,9 +250,10 @@ class DashboardScreen extends StatelessWidget {
               const SizedBox(height: 12),
 
               // 0. Monthly budget indicator (statement is the baseline)
-              if (summary != null && summary.budgetStatus != 'none') ...[
+              if (summary != null) ...[
+                MonthRecapBanner(recap: summary.lastMonthRecap),
                 BudgetCard(summary: summary),
-                const SizedBox(height: 16),
+                SafeToSpendBanner(summary: summary),
               ],
 
               // 1. Spending Overview (Total Spending with subtle Bank vs Cash indicators)
@@ -331,6 +342,14 @@ class DashboardScreen extends StatelessWidget {
             },
           ),
           IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
+            ),
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Budget & Alerts',
+          ),
+          IconButton(
             onPressed: () => AddEditCashExpenseDialog.show(context),
             icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF10B981)),
             tooltip: 'Add Expense',
@@ -398,9 +417,10 @@ class DashboardScreen extends StatelessWidget {
                 transactionCount: summary?.totalTransactionsCount ?? 0,
               ),
               const SizedBox(height: 16),
-              if (summary != null && summary.budgetStatus != 'none') ...[
+              if (summary != null) ...[
+                MonthRecapBanner(recap: summary.lastMonthRecap),
                 BudgetCard(summary: summary),
-                const SizedBox(height: 16),
+                SafeToSpendBanner(summary: summary),
               ],
               _buildMobileSpendingOverview(context, summary, isDark),
               const SizedBox(height: 16),

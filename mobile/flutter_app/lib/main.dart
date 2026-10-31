@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'providers/analytics_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/budget_provider.dart';
 import 'providers/cash_expense_provider.dart';
 import 'providers/forecast_provider.dart';
 import 'providers/model_provider.dart';
@@ -45,6 +46,7 @@ void main() async {
         ChangeNotifierProvider.value(value: analyticsProvider),
         ChangeNotifierProvider.value(value: forecastProvider),
         ChangeNotifierProvider.value(value: modelProvider),
+        ChangeNotifierProvider(create: (_) => BudgetProvider()),
       ],
       child: const ExpenseInsightApp(),
     ),

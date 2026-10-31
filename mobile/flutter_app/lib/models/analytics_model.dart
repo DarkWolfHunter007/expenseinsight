@@ -120,6 +120,61 @@ class RecurringExpenseItem {
   }
 }
 
+class CategoryBudgetItem {
+  final String category;
+  final double limit;
+  final double spent;
+  final double remaining;
+  final double usedPct;
+  final String status; // on_track | warning | critical | exceeded
+
+  CategoryBudgetItem({
+    required this.category,
+    required this.limit,
+    required this.spent,
+    required this.remaining,
+    required this.usedPct,
+    required this.status,
+  });
+
+  factory CategoryBudgetItem.fromJson(Map<String, dynamic> json) {
+    return CategoryBudgetItem(
+      category: json['category'] ?? '',
+      limit: (json['limit'] as num?)?.toDouble() ?? 0.0,
+      spent: (json['spent'] as num?)?.toDouble() ?? 0.0,
+      remaining: (json['remaining'] as num?)?.toDouble() ?? 0.0,
+      usedPct: (json['used_pct'] as num?)?.toDouble() ?? 0.0,
+      status: json['status'] ?? 'on_track',
+    );
+  }
+}
+
+class LastMonthRecap {
+  final String month; // YYYY-MM
+  final double spent;
+  final double budget;
+  final double difference; // positive = under budget
+  final bool underBudget;
+
+  LastMonthRecap({
+    required this.month,
+    required this.spent,
+    required this.budget,
+    required this.difference,
+    required this.underBudget,
+  });
+
+  factory LastMonthRecap.fromJson(Map<String, dynamic> json) {
+    return LastMonthRecap(
+      month: json['month'] ?? '',
+      spent: (json['spent'] as num?)?.toDouble() ?? 0.0,
+      budget: (json['budget'] as num?)?.toDouble() ?? 0.0,
+      difference: (json['difference'] as num?)?.toDouble() ?? 0.0,
+      underBudget: json['under_budget'] ?? true,
+    );
+  }
+}
+
 class AnalyticsSummaryModel {
   final double totalExpense;
   final double totalIncome;
@@ -144,7 +199,12 @@ class AnalyticsSummaryModel {
   final double budgetSpent;
   final double budgetRemaining;
   final double budgetUsedPct;
-  final String budgetStatus; // none | on_track | warning | exceeded
+  final String budgetStatus; // none | on_track | warning | critical | exceeded
+  final String budgetMode; // auto | manual
+  final int daysLeftInMonth;
+  final double safeToSpendToday;
+  final List<CategoryBudgetItem> categoryBudgets;
+  final LastMonthRecap? lastMonthRecap;
 
   AnalyticsSummaryModel({
     required this.totalExpense,
@@ -171,6 +231,11 @@ class AnalyticsSummaryModel {
     this.budgetRemaining = 0.0,
     this.budgetUsedPct = 0.0,
     this.budgetStatus = 'none',
+    this.budgetMode = 'auto',
+    this.daysLeftInMonth = 0,
+    this.safeToSpendToday = 0.0,
+    this.categoryBudgets = const [],
+    this.lastMonthRecap,
   });
 
   factory AnalyticsSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -210,6 +275,14 @@ class AnalyticsSummaryModel {
       budgetRemaining: (json['budget_remaining'] as num?)?.toDouble() ?? 0.0,
       budgetUsedPct: (json['budget_used_pct'] as num?)?.toDouble() ?? 0.0,
       budgetStatus: json['budget_status'] ?? 'none',
+      budgetMode: json['budget_mode'] ?? 'auto',
+      daysLeftInMonth: json['days_left_in_month'] ?? 0,
+      safeToSpendToday: (json['safe_to_spend_today'] as num?)?.toDouble() ?? 0.0,
+      categoryBudgets: (json['category_budgets'] as List<dynamic>?)
+              ?.map((e) => CategoryBudgetItem.fromJson(e))
+              .toList() ??
+          [],
+      lastMonthRecap: json['last_month_recap'] != null ? LastMonthRecap.fromJson(json['last_month_recap']) : null,
     );
   }
 }

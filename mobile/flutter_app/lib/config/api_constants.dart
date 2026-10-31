@@ -73,6 +73,7 @@ class ApiConstants {
   // Model endpoints
   static const String modelStatus = '/model/status';
   static const String modelMetrics = '/model/metrics';
+  static const String budgetSettings = '/budget/settings';
   static const String modelCompare = '/model/compare';
   static const String modelRetrain = '/model/retrain';
 }

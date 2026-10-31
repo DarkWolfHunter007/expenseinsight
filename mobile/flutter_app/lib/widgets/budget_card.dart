@@ -1,110 +1,113 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/analytics_model.dart';
+import '../screens/budget_settings_screen.dart';
+import 'dismissible_banner.dart';
 
-/// Monthly budget indicator. Can be closed; stays closed for that month and status,
-/// and reappears when the status worsens (e.g. warning -> exceeded) or a new month starts.
-class BudgetCard extends StatefulWidget {
+/// Colors and wording for each budget tier.
+class BudgetTier {
+  final Color accent;
+  final Color fill;
+  final IconData icon;
+
+  const BudgetTier(this.accent, this.fill, this.icon);
+
+  static BudgetTier of(String status) {
+    switch (status) {
+      case 'exceeded':
+        return const BudgetTier(Color(0xFFEF4444), Color(0xFF7F1D1D), Icons.warning_amber_rounded);
+      case 'critical':
+        return const BudgetTier(Color(0xFFF97316), Color(0xFF7C2D12), Icons.priority_high_rounded);
+      case 'warning':
+        return const BudgetTier(Color(0xFFF59E0B), Color(0xFF78350F), Icons.error_outline_rounded);
+      default:
+        return const BudgetTier(Color(0xFF10B981), Color(0xFF064E3B), Icons.check_circle_outline_rounded);
+    }
+  }
+}
+
+/// Monthly budget indicator. Can be closed; stays closed for that month and status, and reappears
+/// when the status worsens (e.g. warning -> critical -> exceeded) or a new month starts.
+class BudgetCard extends StatelessWidget {
   final AnalyticsSummaryModel summary;
 
   const BudgetCard({super.key, required this.summary});
 
-  @override
-  State<BudgetCard> createState() => _BudgetCardState();
-}
-
-class _BudgetCardState extends State<BudgetCard> {
-  static const _prefsKey = 'budget_card_dismissed';
-
-  String? _dismissedKey;
-
-  String get _currentKey => '${widget.summary.budgetMonth}|${widget.summary.budgetStatus}';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDismissed();
-  }
-
-  Future<void> _loadDismissed() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final stored = prefs.getString(_prefsKey);
-      if (mounted && stored != null) setState(() => _dismissedKey = stored);
-    } catch (_) {
-      // Dismissal is a convenience; the card simply shows if storage is unavailable.
-    }
-  }
-
-  Future<void> _dismiss() async {
-    final key = _currentKey;
-    setState(() => _dismissedKey = key);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefsKey, key);
-    } catch (_) {}
-  }
+  static String _money(double value) => '₹${value.abs().toStringAsFixed(0)}';
 
   @override
   Widget build(BuildContext context) {
-    final summary = widget.summary;
-    if (summary.budgetStatus == 'none' || _dismissedKey == _currentKey) {
-      return const SizedBox.shrink();
-    }
+    if (summary.budgetStatus == 'none') return const SizedBox.shrink();
 
+    return DismissibleBanner(
+      prefsKey: 'budget_card_dismissed',
+      dismissedValue: '${summary.budgetMonth}|${summary.budgetStatus}',
+      builder: (context, close) => _content(context, close),
+    );
+  }
+
+  Widget _content(BuildContext context, VoidCallback close) {
     final status = summary.budgetStatus;
-    final Color accent;
-    final Color fill;
-    final IconData icon;
-    final String title;
-    final spent = summary.budgetSpent.toStringAsFixed(0);
-    final budget = summary.monthlyBudget.toStringAsFixed(0);
-    final String subtitle;
+    final tier = BudgetTier.of(status);
+    final spent = _money(summary.budgetSpent);
+    final budget = _money(summary.monthlyBudget);
+    final left = _money(summary.budgetRemaining);
+    final pct = summary.budgetUsedPct.toStringAsFixed(0);
 
-    if (status == 'exceeded') {
-      accent = const Color(0xFFEF4444);
-      fill = const Color(0xFF7F1D1D);
-      icon = Icons.warning_amber_rounded;
-      title = "You've exceeded this month's budget";
-      subtitle = '₹$spent spent of ₹$budget, over by ₹${(-summary.budgetRemaining).toStringAsFixed(0)}';
-    } else if (status == 'warning') {
-      accent = const Color(0xFFF59E0B);
-      fill = const Color(0xFF78350F);
-      icon = Icons.error_outline_rounded;
-      title = "Close to this month's budget (${summary.budgetUsedPct.toStringAsFixed(0)}%)";
-      subtitle = '₹$spent spent of ₹$budget, ₹${summary.budgetRemaining.toStringAsFixed(0)} left';
-    } else {
-      accent = const Color(0xFF10B981);
-      fill = const Color(0xFF064E3B);
-      icon = Icons.check_circle_outline_rounded;
-      title = 'On track this month';
-      subtitle = '₹$spent spent of ₹$budget, ₹${summary.budgetRemaining.toStringAsFixed(0)} left';
+    final String title;
+    final String subtitle;
+    switch (status) {
+      case 'exceeded':
+        title = "You've exceeded this month's budget";
+        subtitle = '$spent spent of $budget, over by $left';
+      case 'critical':
+        title = "Only $left left this month ($pct% used)";
+        subtitle = '$spent spent of $budget, ${summary.daysLeftInMonth} days to go';
+      case 'warning':
+        title = "Close to this month's budget ($pct%)";
+        subtitle = '$spent spent of $budget, $left left';
+      default:
+        title = 'On track this month';
+        subtitle = '$spent spent of $budget, $left left';
     }
+
+    final flagged = summary.categoryBudgets.where((c) => c.status != 'on_track').take(4).toList();
+    final basis = summary.budgetMode == 'manual'
+        ? 'Budget = the limits you set in Budget & Alerts'
+        : 'Budget = your average monthly spending from the uploaded statement';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
       decoration: BoxDecoration(
-        color: fill.withValues(alpha: 0.35),
+        color: tier.fill.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.6)),
+        border: Border.all(color: tier.accent.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: accent, size: 22),
+              Icon(tier.icon, color: tier.accent, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: accent),
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: tier.accent),
                 ),
               ),
               IconButton(
-                onPressed: _dismiss,
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
+                ),
+                tooltip: 'Budget & Alerts',
+                icon: const Icon(Icons.tune_rounded, size: 20, color: Colors.white70),
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                onPressed: close,
                 tooltip: 'Dismiss',
                 icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white70),
                 visualDensity: VisualDensity.compact,
@@ -113,10 +116,7 @@ class _BudgetCardState extends State<BudgetCard> {
           ),
           Padding(
             padding: const EdgeInsets.only(left: 32, right: 8),
-            child: Text(
-              subtitle,
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
-            ),
+            child: Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: Colors.white70)),
           ),
           const SizedBox(height: 12),
           Padding(
@@ -126,20 +126,44 @@ class _BudgetCardState extends State<BudgetCard> {
               child: LinearProgressIndicator(
                 value: (summary.budgetUsedPct / 100).clamp(0.0, 1.0),
                 minHeight: 8,
-                color: accent,
+                color: tier.accent,
                 backgroundColor: Colors.white12,
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          if (flagged.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [for (final c in flagged) _categoryChip(c)],
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              'Budget = your average monthly spending from the uploaded statement',
-              style: GoogleFonts.inter(fontSize: 10, color: Colors.white54),
-            ),
+            child: Text(basis, style: GoogleFonts.inter(fontSize: 10, color: Colors.white54)),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _categoryChip(CategoryBudgetItem item) {
+    final tier = BudgetTier.of(item.status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: tier.accent.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tier.accent.withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        '${item.category} ${item.usedPct.toStringAsFixed(0)}%',
+        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: tier.accent),
       ),
     );
   }

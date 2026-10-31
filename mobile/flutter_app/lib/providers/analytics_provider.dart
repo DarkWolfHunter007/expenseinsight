@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/analytics_model.dart';
 import '../services/api_service.dart';
+import '../services/budget_notification_service.dart';
 import '../services/expense_sync_coordinator.dart';
 
 class AnalyticsProvider extends ChangeNotifier {
@@ -40,6 +41,9 @@ class AnalyticsProvider extends ChangeNotifier {
     try {
       _summary = await _api.getAnalyticsSummary(startDate: startDate, endDate: endDate);
       _monthlySpending = await _api.getMonthlySpending(startDate: startDate, endDate: endDate);
+      if (startDate == null && endDate == null && _summary != null) {
+        BudgetNotificationService.instance.maybeNotify(_summary!);
+      }
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {

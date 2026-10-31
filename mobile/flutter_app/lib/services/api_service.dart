@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_constants.dart';
 import '../models/analytics_model.dart';
+import '../models/budget_settings_model.dart';
 import '../models/cash_expense_model.dart';
 import '../models/forecast_model.dart';
 import '../models/model_metrics_model.dart';
@@ -466,6 +467,28 @@ class ApiService {
       debugPrint('API Error (deleteCashExpense): $e');
       return false;
     }
+  }
+
+  // ----------------- Budget settings -----------------
+
+  Future<BudgetSettingsModel> getBudgetSettings() async {
+    final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.budgetSettings}');
+    final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 5));
+    if (response.statusCode == 200) {
+      return BudgetSettingsModel.fromJson(json.decode(response.body));
+    }
+    throw Exception('Failed to load budget settings (HTTP ${response.statusCode})');
+  }
+
+  Future<BudgetSettingsModel> saveBudgetSettings(BudgetSettingsModel settings) async {
+    final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.budgetSettings}');
+    final response = await http
+        .put(url, headers: _headers, body: json.encode(settings.toJson()))
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode == 200) {
+      return BudgetSettingsModel.fromJson(json.decode(response.body));
+    }
+    throw Exception('Failed to save budget settings (HTTP ${response.statusCode})');
   }
 
   // ----------------- Analytics -----------------

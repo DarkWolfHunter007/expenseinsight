@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/install_guide_dialog.dart';
 import '../widgets/server_settings_dialog.dart';
+import 'budget_settings_screen.dart';
 import 'cash_expenses_screen.dart';
 import 'model_benchmark_screen.dart';
 import 'onboarding_screen.dart';
@@ -153,6 +154,21 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 24),
           _buildSectionHeader('System & Settings'),
           const SizedBox(height: 8),
+          _buildMenuCard(
+            context,
+            icon: Icons.savings_rounded,
+            iconColor: const Color(0xFF10B981),
+            title: 'Budget & Alerts',
+            subtitle: 'Monthly and category limits, 80% / 90% warnings, notifications',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
+              );
+            },
+            isDark: isDark,
+          ),
+          const SizedBox(height: 10),
           _buildMenuCard(
             context,
             icon: Icons.cloud_outlined,
