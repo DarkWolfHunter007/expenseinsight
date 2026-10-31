@@ -15,6 +15,7 @@ import '../providers/statement_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/add_edit_cash_expense_dialog.dart';
 import '../widgets/bank_statement_header.dart';
+import '../widgets/budget_card.dart';
 import '../widgets/category_donut_chart.dart';
 import '../widgets/install_guide_dialog.dart';
 import '../widgets/merchant_ranking_card.dart';
@@ -240,7 +241,7 @@ class DashboardScreen extends StatelessWidget {
 
               // 0. Monthly budget indicator (statement is the baseline)
               if (summary != null && summary.budgetStatus != 'none') ...[
-                _buildBudgetCard(context, summary),
+                BudgetCard(summary: summary),
                 const SizedBox(height: 16),
               ],
 
@@ -398,7 +399,7 @@ class DashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               if (summary != null && summary.budgetStatus != 'none') ...[
-                _buildBudgetCard(context, summary),
+                BudgetCard(summary: summary),
                 const SizedBox(height: 16),
               ],
               _buildMobileSpendingOverview(context, summary, isDark),
@@ -955,89 +956,6 @@ class DashboardScreen extends StatelessWidget {
         else
           ...transactions.map((t) => TransactionTile(transaction: t)),
       ],
-    );
-  }
-
-  // ==========================================
-  // COMPONENT: Monthly Budget Card
-  // ==========================================
-  Widget _buildBudgetCard(BuildContext context, AnalyticsSummaryModel summary) {
-    final status = summary.budgetStatus;
-    final Color accent;
-    final Color fill;
-    final IconData icon;
-    final String title;
-    final String subtitle;
-    final spent = summary.budgetSpent.toStringAsFixed(0);
-    final budget = summary.monthlyBudget.toStringAsFixed(0);
-
-    if (status == 'exceeded') {
-      accent = const Color(0xFFEF4444);
-      fill = const Color(0xFF7F1D1D);
-      icon = Icons.warning_amber_rounded;
-      title = "You've exceeded this month's budget";
-      subtitle = '₹$spent spent of ₹$budget, over by ₹${(-summary.budgetRemaining).toStringAsFixed(0)}';
-    } else if (status == 'warning') {
-      accent = const Color(0xFFF59E0B);
-      fill = const Color(0xFF78350F);
-      icon = Icons.error_outline_rounded;
-      title = "Close to this month's budget (${summary.budgetUsedPct.toStringAsFixed(0)}%)";
-      subtitle = '₹$spent spent of ₹$budget, ₹${summary.budgetRemaining.toStringAsFixed(0)} left';
-    } else {
-      accent = const Color(0xFF10B981);
-      fill = const Color(0xFF064E3B);
-      icon = Icons.check_circle_outline_rounded;
-      title = 'On track this month';
-      subtitle = '₹$spent spent of ₹$budget, ₹${summary.budgetRemaining.toStringAsFixed(0)} left';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: fill.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: accent, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: accent),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 32),
-            child: Text(
-              subtitle,
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: (summary.budgetUsedPct / 100).clamp(0.0, 1.0),
-              minHeight: 8,
-              color: accent,
-              backgroundColor: Colors.white12,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Budget = your average monthly spending from the uploaded statement',
-            style: GoogleFonts.inter(fontSize: 10, color: Colors.white54),
-          ),
-        ],
-      ),
     );
   }
 
