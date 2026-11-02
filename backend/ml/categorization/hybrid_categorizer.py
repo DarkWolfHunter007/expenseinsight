@@ -17,21 +17,45 @@ class HybridCategorizer:
     # model was trained mostly on synthetic data where a named UPI payee meant a person, so it calls
     # every unfamiliar payee a transfer with ~99% confidence, even a shop or gibberish.
     UNVERIFIED_TRANSFER_CONFIDENCE = 0.55
-    _PAYEE_PATTERN = re.compile(r"UPI/(?:DR|CR)/\d+/([^/]+)/")
-    # Short words must match a whole token ("CHIT" must not match the name CHITRA); long ones by prefix
-    # because the bank cuts payee names ("RESTAURA").
-    _BUSINESS_WORDS = {
-        "STORE", "STORES", "MART", "SHOP", "SHOPS", "BOOK", "BOOKS", "CAFE", "TEA", "FOOD", "FOODS", "FUEL",
-        "CHIT", "CHITS", "BAKE", "PAY", "LTD", "PVT", "TECH", "LAB", "LABS", "GYM", "CABS", "TAXI", "AUTO", "SPA", "BAR",
-        "CLOUD", "PLAY", "GOLD", "TOUR", "TOURS", "SWEETS", "HOTEL", "HOTELS", "AGENCY", "CLINIC",
+    KEYWORD_CONFIDENCE = 0.72
+
+    # Payment handles that only businesses have: static/dynamic QR codes, Google Pay for Business,
+    # payment gateways.
+    _BUSINESS_SIGNAL = re.compile(
+        r"STATICQR|\bDQR\d*|OKBIZ|PAYTMQR|BHARATPE|MSWIPE|\.PAYU|\bPAYU@|RZP@|RAZORPAY|QR\d*@", re.IGNORECASE
+    )
+    _MS_PREFIX = re.compile(r"UPI/(?:DR|CR)/\d*/M/S", re.IGNORECASE)
+
+    # A clear business word in the payee suggests a category. Short words must match a whole token
+    # ("CHIT" must not match the name CHITRA); words of 5+ letters match as a prefix because the bank
+    # cuts payee names ("RESTAUR") and the PDF wraps them in the middle of a word ("BARBEC UE").
+    _HINTS = {
+        "Food": (
+            {"CAFE", "TEA", "FOOD", "FOODS", "SWEETS", "HOTEL", "HOTELS", "BAKE", "BBQ", "MESS", "TIFFIN", "DINER"},
+            ("BAKER", "RESTAUR", "KITCHEN", "COFFEE", "JUICE", "BARBEC", "BIRYANI", "CATERING"),
+        ),
+        "Fuel": ({"FUEL", "FUELS", "PETROL", "DIESEL"}, ("PETROL",)),
+        "Healthcare": (
+            {"CLINIC", "LAB", "LABS", "DENTAL", "OPTICAL", "OPTICALS"},
+            ("MEDICAL", "PHARMA", "HOSPITAL", "OPTICAL", "DENTAL"),
+        ),
+        "Shopping": (
+            {"STORE", "STORES", "SHOP", "SHOPS", "BOOK", "BOOKS", "PET", "PETS", "MOBILE", "MOBILES"},
+            ("TEXTILE", "FASHION", "JEWEL", "STATION", "ELECTRON", "ELECTRIC", "HARDWARE", "COMPUTER", "XEROX", "FLOWER"),
+        ),
+        "Groceries": ({"MART", "SUPERMARKET"}, ("SUPER", "GROCER", "VEGETABL", "DAIRY", "MARKET")),
+        "Travel": ({"CABS", "TAXI", "TOUR", "TOURS", "TRAVELS"}, ("TRAVEL", "MOTOR", "GARAGE")),
+        "Personal Care": ({"SALON", "SPA", "GYM", "PARLOUR", "BEAUTY"}, ("FITNESS", "PARLOUR")),
     }
-    _BUSINESS_PREFIXES = (
-        "MEDICAL", "PHARMA", "BAKE", "PETROL", "RESTAUR", "SUPER", "MARKET", "TRADER", "TRADING", "ENTERPR",
-        "SERVICE", "HOSPITAL", "STATION", "STATIONERY", "TEXTILE", "FASHION", "JEWEL", "FINANCE", "INSURANCE",
-        "SOFTWARE", "SYSTEM", "SOLUTION", "CORPORAT", "PAYMENT", "RECHARGE", "WALLET", "STUDIO", "KITCHEN",
-        "COFFEE", "JUICE", "GROCER", "VEGETABL", "DAIRY", "PRINT", "XEROX", "COMPUTER", "MOBILE", "ELECTRIC",
-        "ELECTRON", "HARDWARE", "TRAVEL", "MOTOR", "GARAGE", "FLOWER", "OPTICAL", "FITNESS", "SALON",
-        "PARLOUR", "SCHOOL", "COLLEGE", "ACADEMY", "INSTITUT", "ASSOCIAT", "SOCIETY", "TRUST", "ENTERTAIN",
+    # Business words that do not point to a category (the row goes to review instead)
+    _OTHER_BUSINESS_WORDS = {
+        "CHIT", "CHITS", "PAY", "LTD", "PVT", "TECH", "BAR", "CLOUD", "PLAY", "GOLD", "AGENCY", "AUTO", "HUT",
+        "SIGN", "SIGNS",
+    }
+    _OTHER_BUSINESS_PREFIXES = (
+        "ENTERPR", "SERVICE", "STUDIO", "TRADER", "TRADING", "FINANCE", "INSURANCE", "SOFTWARE", "SYSTEM",
+        "SOLUTION", "CORPORAT", "PAYMENT", "RECHARGE", "WALLET", "SCHOOL", "COLLEGE", "ACADEMY", "INSTITUT",
+        "ASSOCIAT", "SOCIETY", "TRUST", "ENTERTAIN", "PRINT",
     )
 
     HIGH_CONFIDENCE_THRESHOLD = 0.85
@@ -61,24 +85,57 @@ class HybridCategorizer:
             self._brand_word_cache = words
         return self._brand_word_cache
 
-    def payee_looks_like_person(self, raw_description: str) -> Optional[bool]:
-        """True/False for a UPI narration, None when there is no UPI payee to judge."""
-        match = self._PAYEE_PATTERN.search(raw_description or "")
-        if not match:
+    @staticmethod
+    def _word_matches(word: str, exact: set, prefixes: tuple) -> bool:
+        return word in exact or (len(word) >= 5 and word.startswith(prefixes))
+
+    def payee_profile(self, raw_description: str) -> Optional[Dict[str, Any]]:
+        """Judges a UPI payee: is it a business, and does a business word suggest a category?
+        Returns None when the narration is not a UPI payment (there is no payee to judge)."""
+        payee = MerchantNormalizer.extract_payee(raw_description)
+        if payee is None:
             return None
-        raw_tokens = match.group(1).replace(".", " ").upper().split()
+
+        raw_tokens = payee.replace(".", " ").replace("/", " ").upper().split()
         # Wrapped lines leave fragments of the payment handle glued to the name ("KANNAN S99", "PM@");
         # a token that is only digits ("ICGAIFE 3") is a real code and stays as it is.
         tokens = [re.sub(r"[\d@]+$", "", tk) if re.search(r"[A-Z]", tk) else tk for tk in raw_tokens]
-        if not 1 <= len(tokens) <= 4:
-            return False
+
+        # The PDF wraps lines in the middle of words ("ST ATICQR"), so also look with the spaces removed
+        spaceless = re.sub(r"\s+", "", (raw_description or "").upper())
+        business = bool(
+            self._BUSINESS_SIGNAL.search(raw_description or "")
+            or self._BUSINESS_SIGNAL.search(spaceless)
+            or self._MS_PREFIX.search(raw_description or "")
+            or not 1 <= len(tokens) <= 4
+        )
+        hint: Optional[str] = None
         brands = self._brand_words()
-        for token in tokens:
-            if not token.isalpha() or token in self._BUSINESS_WORDS or token in brands:
-                return False
-            if len(token) >= 5 and token.startswith(self._BUSINESS_PREFIXES):
-                return False
-        return True
+
+        # Single tokens, and neighbours joined together to undo a mid-word wrap ("BARBEC" + "UE")
+        words = list(tokens) + ["".join(pair) for pair in zip(tokens, tokens[1:])]
+        for word in words:
+            if not word.isalpha():
+                if word in tokens:
+                    business = True  # a code such as "3" is not part of a personal name
+                continue
+            for category, (exact, prefixes) in self._HINTS.items():
+                if self._word_matches(word, exact, prefixes):
+                    business = True
+                    hint = hint or category
+            if self._word_matches(word, self._OTHER_BUSINESS_WORDS, self._OTHER_BUSINESS_PREFIXES):
+                business = True
+            if word in brands and word in tokens:
+                business = True
+
+        return {"payee": payee, "business": business, "hint": hint}
+
+    def payee_looks_like_person(self, raw_description: str) -> Optional[bool]:
+        """True/False for a UPI narration, None when there is no UPI payee to judge."""
+        profile = self.payee_profile(raw_description)
+        if profile is None:
+            return None
+        return not profile["business"]
 
     def categorize_transaction(
         self,
@@ -115,13 +172,24 @@ class HybridCategorizer:
             prob_dist = ml_probs
             explanation = f"Classified by machine learning model with {confidence*100:.1f}% confidence."
 
-            # Do not trust "Transfers" for a payee that does not look like a person
-            if category == "Transfers" and self.payee_looks_like_person(raw_description) is False:
-                confidence = min(confidence, self.UNVERIFIED_TRANSFER_CONFIDENCE)
-                explanation = (
-                    "The model guessed a transfer, but the payee does not look like a person's name, "
-                    "so it needs a human check."
-                )
+            # A payee that does not look like a person is not trusted as a transfer
+            profile = self.payee_profile(raw_description)
+            if profile and profile["business"]:
+                if profile["hint"]:
+                    # A clear business word ("BAKERY", "FUELS", "MEDICAL") names the category
+                    category = profile["hint"]
+                    confidence = self.KEYWORD_CONFIDENCE
+                    source = "payee_keyword"
+                    explanation = (
+                        f"The payee '{profile['payee']}' contains a business word that points to "
+                        f"{category}; please check it if it looks wrong."
+                    )
+                elif category == "Transfers":
+                    confidence = min(confidence, self.UNVERIFIED_TRANSFER_CONFIDENCE)
+                    explanation = (
+                        "The model guessed a transfer, but the payee does not look like a person's name, "
+                        "so it needs a human check."
+                    )
 
         # Step 4: Fallback heuristic if no ML model fitted
         else:

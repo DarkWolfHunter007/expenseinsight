@@ -20,6 +20,8 @@ class ExpenseForecaster:
         self.smoothing_level = smoothing_level
 
     MIN_COMPLETE_MONTHS = 3
+    COMPLETE_COVERAGE = 0.85   # a month with at least this share of its days covered counts as complete
+    MIN_PARTIAL_COVERAGE = 0.5  # with a short history, a thinner partial month is left out
 
     def _prepare_monthly_category_matrix(
         self,
@@ -74,12 +76,23 @@ class ExpenseForecaster:
         pivot = pivot.sort_index()
         pivot = pivot.reindex(pd.period_range(pivot.index.min(), pivot.index.max(), freq="M"), fill_value=0.0)
 
-        complete = [
-            p for p in pivot.index
-            if p.start_time.normalize() >= cov_start.normalize() and p.end_time.normalize() <= cov_end.normalize()
-        ]
+        def coverage(period: pd.Period) -> float:
+            """Share of the month's days that the data covers (0 to 1)."""
+            start = max(period.start_time.normalize(), cov_start.normalize())
+            end = min(period.end_time.normalize(), cov_end.normalize())
+            return max(0, (end - start).days + 1) / period.days_in_month
+
+        shares = {p: coverage(p) for p in pivot.index}
+        complete = [p for p, share in shares.items() if share >= self.COMPLETE_COVERAGE]
         if len(complete) >= self.MIN_COMPLETE_MONTHS:
+            # Enough history: use complete months only
             pivot = pivot.loc[complete]
+        elif complete:
+            # Short history: keep the complete months and any partial month that still covers at least
+            # half of its days. A month with only a few days of data would otherwise carry most of the
+            # weight (the two-month formula gives the latest month 65%) and drag the forecast to nothing.
+            keep = [p for p, share in shares.items() if share >= self.MIN_PARTIAL_COVERAGE]
+            pivot = pivot.loc[keep]
         return pivot
 
     def _forecast_series(self, values: np.ndarray, horizon: int = 1) -> Tuple[float, float, float]:

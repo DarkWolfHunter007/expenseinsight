@@ -505,9 +505,23 @@ class MerchantNormalizer:
             if len(compact) >= 6:
                 self._compact_aliases.setdefault(compact, canonical)
             if len(alias_clean) > 9:
-                cut = alias_clean[:9].replace(" ", "")
-                if len(cut) >= 6:
-                    self._compact_aliases.setdefault(cut, canonical)
+                cut = alias_clean[:9]
+                compact_cut = cut.replace(" ", "")
+                # Only a cut that ends part-way through a second word is a real truncation. A cut that
+                # ends at a word boundary ("bangalore metro" -> "bangalore") is just a generic word.
+                if " " in cut.strip() and not cut.endswith(" ") and len(compact_cut) >= 6:
+                    self._compact_aliases.setdefault(compact_cut, canonical)
+
+    # "UPI/DR/<reference>/<payee>/<bank>/...": the payee is the only part that names the merchant. The rest
+    # is the payment handle, a reference hash and sometimes the shop's address, which must never be matched
+    # against merchant names (a stray "vi" in a hash is not Vodafone Idea, an address is not a metro line).
+    _UPI_PAYEE = re.compile(r"UPI/(?:DR|CR)/\d*/((?:M/S[. ]*)?[^/]+)/", re.IGNORECASE)
+
+    @classmethod
+    def extract_payee(cls, raw_description: str) -> Optional[str]:
+        """The payee text of a UPI narration, or None when it is not a UPI payment."""
+        match = cls._UPI_PAYEE.search(raw_description or "")
+        return match.group(1).strip() if match else None
 
     def add_user_correction(self, raw_or_cleaned_merchant: str, canonical_name: str, category: Optional[str] = None):
         """Layer 4: Persistent user feedback correction."""
@@ -527,7 +541,10 @@ class MerchantNormalizer:
         if not raw_description:
             return ("Unknown Merchant", "unknown", None, 0.0)
 
-        cleaned_text = self.text_cleaner.clean(raw_description)
+        payee = self.extract_payee(raw_description)
+        cleaned_text = self.text_cleaner.clean(payee) if payee else ""
+        if not cleaned_text:
+            cleaned_text = self.text_cleaner.clean(raw_description)
         if not cleaned_text:
             return ("Unknown Merchant", "unknown", None, 0.0)
 
@@ -551,6 +568,8 @@ class MerchantNormalizer:
         for alias in self._alias_to_canonical:
             if best_alias is not None and len(alias) <= len(best_alias):
                 continue
+            if len(alias.replace(" ", "")) < 3:
+                continue  # "vi" would match almost any text; very short aliases only match a whole payee
             if re.search(r'\b' + re.escape(alias) + r'\b', cleaned_text):
                 best_alias = alias
         if best_alias is not None:
@@ -567,13 +586,17 @@ class MerchantNormalizer:
                     default_cat = self.kb.get(canonical, {}).get("default_category")
                     return (canonical, canonical.lower().replace(" ", "_"), default_cat, 0.92)
 
-        # Layer 3: Fuzzy similarity matching using RapidFuzz
-        if self._all_aliases:
+        # Layer 3: Fuzzy similarity matching using RapidFuzz. Aliases under 6 letters are left out: a
+        # short alias such as "h and m" scores highly against almost any text.
+        fuzzy_pool = [alias for alias in self._all_aliases if len(alias.replace(" ", "")) >= 6]
+        if fuzzy_pool:
             best_match = process.extractOne(
                 cleaned_text,
-                self._all_aliases,
-                scorer=fuzz.token_set_ratio,
-                score_cutoff=75.0
+                fuzzy_pool,
+                # Whole-string similarity, so a typo still matches ("swigy" -> "swiggy") but a single shared
+                # word does not ("google in" must not become "google youtube")
+                scorer=fuzz.ratio,
+                score_cutoff=80.0
             )
             if best_match:
                 matched_alias, score, _ = best_match
