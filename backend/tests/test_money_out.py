@@ -58,3 +58,14 @@ def test_net_cash_flow_is_the_real_change_in_the_account():
     summary = client.get("/analytics/summary", headers=headers).json()
     assert summary["net_cash_flow"] == round(money_in - money_out - summary["cash_spending"], 2)
     assert summary["this_month_label"]  # names the month the "this month" figure belongs to
+
+
+def test_monthly_items_carry_money_in_and_out():
+    token = client.post("/auth/guest").json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/statements/seed-sample?bank=HDFC%20Bank", headers=headers)
+    txns = client.get("/transactions?limit=1000", headers=headers).json()
+    months = client.get("/analytics/monthly", headers=headers).json()
+    assert months
+    assert round(sum(m["money_out"] for m in months), 2) == round(sum(t["amount"] for t in txns if t["cr_dr"] == "DR"), 2)
+    assert round(sum(m["money_in"] for m in months), 2) == round(sum(t["amount"] for t in txns if t["cr_dr"] == "CR"), 2)

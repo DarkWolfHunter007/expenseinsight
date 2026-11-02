@@ -229,3 +229,29 @@ class BudgetSettings(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="budget_settings")
+
+
+class Notification(Base):
+    """A Financial Activity Centre entry. (user_id, dedupe_key) is unique, so one event is recorded once."""
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("user_id", "dedupe_key", name="uq_notification_dedupe"),)
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    type = Column(String(40), nullable=False, index=True)
+    severity = Column(String(12), nullable=False, default="info")  # info | success | warning | critical
+    title = Column(String(200), nullable=False)
+    body = Column(Text, nullable=False, default="")
+    dedupe_key = Column(String(200), nullable=False)
+    action = Column(String(40), nullable=True)  # budget_settings | review_uncertain | transactions | dashboard ...
+    scope_month = Column(String(7), nullable=True)
+    scope_day = Column(String(10), nullable=True)
+    scope_category = Column(String(50), nullable=True)
+    live_count = Column(Integer, nullable=True)  # the outstanding count for the "needs review" notification
+
+    read_at = Column(DateTime, nullable=True)
+    dismissed_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

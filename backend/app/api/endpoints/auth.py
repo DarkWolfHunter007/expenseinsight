@@ -13,6 +13,9 @@ from ...models.db_models import (
     Statement,
     Transaction,
     User,
+    BudgetSettings,
+    MerchantCategoryRule,
+    Notification,
 )
 from ...models.schemas import (
     Token,
@@ -99,6 +102,23 @@ def identify(
                 db.query(CategoryCorrection).filter(CategoryCorrection.user_id == calling_user.id).update(
                     {CategoryCorrection.user_id: existing_user.id}, synchronize_session=False
                 )
+                # Learned merchant rules carry over unless the account already has a rule for that merchant
+                existing_rules = {
+                    r.normalized_merchant
+                    for r in db.query(MerchantCategoryRule).filter(MerchantCategoryRule.user_id == existing_user.id).all()
+                }
+                for rule in db.query(MerchantCategoryRule).filter(MerchantCategoryRule.user_id == calling_user.id).all():
+                    if rule.normalized_merchant in existing_rules:
+                        db.delete(rule)
+                    else:
+                        rule.user_id = existing_user.id
+                # Budget settings carry over only if the account has none of its own
+                if db.query(BudgetSettings).filter(BudgetSettings.user_id == existing_user.id).first() is None:
+                    db.query(BudgetSettings).filter(BudgetSettings.user_id == calling_user.id).update(
+                        {BudgetSettings.user_id: existing_user.id}, synchronize_session=False
+                    )
+                # Notifications are events the account regenerates from its own data; the guest's are dropped
+                db.query(Notification).filter(Notification.user_id == calling_user.id).delete(synchronize_session=False)
                 # Remove guest forecast
                 db.query(Forecast).filter(Forecast.user_id == calling_user.id).delete(synchronize_session=False)
                 # Remove ephemeral guest record

@@ -257,3 +257,16 @@ def test_forecast_explanation_names_arima():
     result = _forecaster().generate_forecast(FULL_MONTHS, ("2026-01-01", "2026-05-31"))
     assert "ARIMA" in result["explanation"]
     assert "exponential smoothing" not in result["explanation"]
+
+
+def test_last_calendar_month_spending_is_reported_all_month_not_only_in_the_recap_window():
+    result = _budget_with(AUTO, [("2026-02-05", 1000.0)], date(2026, 3, 20))
+    assert result["last_month_recap"] is None  # the recap only shows in the first days of a month
+    assert result["last_month_spent"] == 1000.0
+    assert result["last_month_label"] == "February 2026"
+
+
+def test_no_last_month_label_when_nothing_was_spent():
+    result = _budget_with(AUTO, [], date(2026, 3, 20))
+    assert result["last_month_spent"] == 0.0
+    assert result["last_month_label"] == ""

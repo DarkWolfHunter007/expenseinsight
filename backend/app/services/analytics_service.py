@@ -310,6 +310,8 @@ class AnalyticsService:
             "safe_to_spend_today": 0.0,
             "category_budgets": [],
             "last_month_recap": None,
+            "last_month_spent": 0.0,
+            "last_month_label": "",
         }
 
         baseline_df = AccountingPolicy.filter_personal_expenses(bank_df) if not bank_df.empty else bank_df
@@ -359,9 +361,9 @@ class AnalyticsService:
         category_budgets.sort(key=lambda c: c["used_pct"], reverse=True)
 
         recap = None
+        prev_period = period - 1
+        prev_spent = self._spent_in_month(frames, prev_period)
         if today.day <= self.RECAP_WINDOW_DAYS:
-            prev_period = period - 1
-            prev_spent = self._spent_in_month(frames, prev_period)
             if prev_spent > 0:
                 diff = round(overall - prev_spent, 2)
                 recap = {
@@ -381,6 +383,8 @@ class AnalyticsService:
             "safe_to_spend_today": round(max(0.0, remaining) / days_left, 2),
             "category_budgets": category_budgets,
             "last_month_recap": recap,
+            "last_month_spent": prev_spent,
+            "last_month_label": prev_period.strftime("%B %Y") if prev_spent > 0 else "",
         })
         return base
 
@@ -664,6 +668,14 @@ class AnalyticsService:
             total_inc = round(bank_inc, 2)
             txn_count = len(b_group) + len(c_group)
 
+            def _side(frame, direction):
+                if frame.empty or "cr_dr" not in frame.columns:
+                    return 0.0
+                return round(float(frame[frame["cr_dr"].astype(str).str.upper() == direction]["amount"].sum()), 2)
+
+            money_out = _side(b_group, "DR")
+            money_in = _side(b_group, "CR")
+
             dt = ym.to_timestamp()
             monthly_items.append({
                 "month": str(ym),
@@ -673,7 +685,9 @@ class AnalyticsService:
                 "net_savings": round(total_inc - total_exp, 2),
                 "transaction_count": txn_count,
                 "bank_expense": round(bank_exp, 2),
-                "cash_expense": round(cash_exp, 2)
+                "cash_expense": round(cash_exp, 2),
+                "money_in": money_in,
+                "money_out": money_out,
             })
 
         return monthly_items

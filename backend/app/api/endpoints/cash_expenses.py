@@ -33,6 +33,13 @@ def create_cash_expense(
     service = CashExpenseService(db=db)
     expense = service.create_cash_expense(user_id=current_user.id, payload=payload)
     _trigger_forecast_sync(db, current_user.id, trigger="create_cash_expense", transaction_id=expense.id)
+    try:
+        from ...services.notification_service import NotificationService
+        activity = NotificationService(db)
+        activity.record_cash_expense(current_user.id, expense.id, float(expense.amount), str(expense.category))
+        activity.sync(current_user.id)
+    except Exception as exc:  # the expense is saved; a notification problem must not undo that
+        print(f"[notifications] could not record cash expense notification: {exc}")
     return expense
 
 

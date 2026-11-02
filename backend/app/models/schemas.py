@@ -148,6 +148,8 @@ class MonthlySpendingItem(BaseModel):
     transaction_count: int
     bank_expense: float = 0.0
     cash_expense: float = 0.0
+    money_in: float = 0.0
+    money_out: float = 0.0
 
 class MerchantSpendingItem(BaseModel):
     merchant: str
@@ -219,6 +221,8 @@ class AnalyticsSummaryResponse(BaseModel):
     safe_to_spend_today: float = 0.0
     category_budgets: List["CategoryBudgetItem"] = []
     last_month_recap: Optional["LastMonthRecap"] = None
+    last_month_spent: float = 0.0
+    last_month_label: str = ""
 
 
 # ----------------- Forecast Schemas -----------------

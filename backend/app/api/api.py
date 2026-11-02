@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from .endpoints import analytics, auth, budget, cash_expenses, forecast, model, statements, transactions
+from .endpoints import analytics, auth, budget, cash_expenses, notifications, forecast, model, statements, transactions
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytic
 api_router.include_router(forecast.router, prefix="/forecast", tags=["Forecast"])
 api_router.include_router(model.router, prefix="/model", tags=["ML Model"])
 api_router.include_router(budget.router, prefix="/budget", tags=["Budget"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

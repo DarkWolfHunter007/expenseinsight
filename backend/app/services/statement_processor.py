@@ -336,6 +336,17 @@ class StatementProcessor:
             stmt.processing_progress = 1.0
             self.db.commit()
 
+            try:
+                from .notification_service import NotificationService
+                activity = NotificationService(self.db)
+                activity.record_statement(
+                    stmt.user_id, stmt.id, stmt.bank_name or "bank", len(processed_transactions),
+                    sum(1 for t in processed_transactions if t.needs_review),
+                )
+                activity.sync(stmt.user_id)
+            except Exception as notify_err:
+                print(f"[notifications] could not record statement notification: {notify_err}")
+
             total_elapsed = time.time() - start_time
             print(f"\n{GREEN}+==============================================================================+{RESET}")
             print(f"{GREEN}| [OK] Pipeline Finished Successfully in {total_elapsed:.2f}s!                               |{RESET}")
@@ -360,5 +371,14 @@ class StatementProcessor:
                 failed_stmt.processing_status = "failed"
                 failed_stmt.processing_step = f"Failed: {str(e)}"[:100]
                 self.db.commit()
+                try:
+                    from .notification_service import NotificationService
+                    NotificationService(self.db).record_system(
+                        failed_stmt.user_id, f"statement-failed|{failed_stmt.id}", "A statement could not be processed",
+                        f"{failed_stmt.file_name or 'The file'} could not be read. Try uploading it again.",
+                        severity="critical", action="upload",
+                    )
+                except Exception as notify_err:
+                    print(f"[notifications] could not record failure notification: {notify_err}")
             print(f"\n{RED}[X] [Pipeline Error] Statement processing failed: {e}{RESET}\n")
             raise e
