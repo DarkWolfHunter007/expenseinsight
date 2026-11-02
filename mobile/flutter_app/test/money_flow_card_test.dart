@@ -78,4 +78,13 @@ void main() {
     expect(fresh.transfersIn, 12966);
     expect(AnalyticsSummaryModel.fromJson({}).bankMoneyOut, 0.0);
   });
+
+  test('summary parses net cash flow and the latest month label', () {
+    final s = AnalyticsSummaryModel.fromJson({'net_cash_flow': -1677.82, 'this_month_label': 'Sep 2026'});
+    expect(s.netCashFlow, -1677.82);
+    expect(s.thisMonthLabel, 'Sep 2026');
+    final old = AnalyticsSummaryModel.fromJson({});
+    expect(old.netCashFlow, 0.0);
+    expect(old.thisMonthLabel, '');
+  });
 }

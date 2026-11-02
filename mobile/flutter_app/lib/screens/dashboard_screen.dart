@@ -443,16 +443,16 @@ class DashboardScreen extends StatelessWidget {
                 childAspectRatio: 2.2,
                 children: [
                   SpendingMetricCard(
-                    title: 'This Month',
+                    title: (summary?.thisMonthLabel ?? '').isNotEmpty ? 'Latest month: ${summary!.thisMonthLabel}' : 'This Month',
                     amount: summary?.thisMonthSpent ?? 0.0,
                     trendPercentage: summary?.monthOverMonthChangePct,
                     icon: Icons.calendar_today_rounded,
                     accentColor: const Color(0xFF3B82F6),
                   ),
                   SpendingMetricCard(
-                    title: 'Net Savings',
-                    amount: summary?.netSavings ?? 0.0,
-                    subtitle: 'Income minus Expenses',
+                    title: 'Net cash flow',
+                    amount: summary?.netCashFlow ?? 0.0,
+                    subtitle: 'Money in minus money out',
                     icon: Icons.savings_rounded,
                     accentColor: const Color(0xFF10B981),
                   ),
@@ -599,6 +599,13 @@ class DashboardScreen extends StatelessWidget {
               color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
           ),
+          if ((summary?.transfersOut ?? 0) > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Purchases, bills and fees. Excludes ${MoneyFlowCard.format(summary!.transfersOut)} sent to people (see Money in and out).',
+              style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+            ),
+          ],
           const SizedBox(height: 12),
           // Clean, subtle source tags
           Wrap(

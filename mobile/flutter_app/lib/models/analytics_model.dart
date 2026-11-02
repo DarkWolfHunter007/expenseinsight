@@ -199,6 +199,8 @@ class AnalyticsSummaryModel {
   final double transfersOut;
   final double transfersIn;
   final double otherMoneyOut;
+  final double netCashFlow;
+  final String thisMonthLabel;
   final double monthlyBudget;
   final String? budgetMonth;
   final double budgetSpent;
@@ -235,6 +237,8 @@ class AnalyticsSummaryModel {
     this.transfersOut = 0.0,
     this.transfersIn = 0.0,
     this.otherMoneyOut = 0.0,
+    this.netCashFlow = 0.0,
+    this.thisMonthLabel = '',
     this.monthlyBudget = 0.0,
     this.budgetMonth,
     this.budgetSpent = 0.0,
@@ -284,6 +288,8 @@ class AnalyticsSummaryModel {
       transfersOut: (json['transfers_out'] as num?)?.toDouble() ?? 0.0,
       transfersIn: (json['transfers_in'] as num?)?.toDouble() ?? 0.0,
       otherMoneyOut: (json['other_money_out'] as num?)?.toDouble() ?? 0.0,
+      netCashFlow: (json['net_cash_flow'] as num?)?.toDouble() ?? 0.0,
+      thisMonthLabel: json['this_month_label'] ?? '',
       monthlyBudget: (json['monthly_budget'] as num?)?.toDouble() ?? 0.0,
       budgetMonth: json['budget_month'],
       budgetSpent: (json['budget_spent'] as num?)?.toDouble() ?? 0.0,
