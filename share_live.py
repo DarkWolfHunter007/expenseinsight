@@ -4,6 +4,8 @@ import sys
 import time
 import subprocess
 import shutil
+import threading
+import urllib.request
 
 # Ensure UTF-8 console output for beautiful ASCII QR rendering
 if sys.platform == 'win32':
@@ -46,6 +48,31 @@ def check_cloudflared():
             return prog_path
     return path
 
+def drain_output(stream):
+    """Keep reading cloudflared's output. If nobody reads it the pipe fills up, cloudflared freezes
+    before it finishes connecting, and the public link shows a Cloudflare 530 error forever."""
+    try:
+        for _ in stream:
+            pass
+    except Exception:
+        pass
+
+
+def wait_until_reachable(url: str, timeout: int = 45) -> bool:
+    """Polls the public link until it answers, so the QR code is only shown once it really works."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            req = urllib.request.Request(url + '/health', headers={'User-Agent': 'expenseinsight-share'})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(2)
+    return False
+
+
 def print_qr(url: str):
     qr = qrcode.QRCode(
         version=1,
@@ -81,7 +108,7 @@ def main():
         print(f'Or download from: https://github.com/cloudflare/cloudflared/releases\n')
         return
 
-    print(f'{BLUE}[1/2] Connecting Cloudflare Tunnel to port {target_port}...{RESET}')
+    print(f'{BLUE}[1/3] Connecting Cloudflare Tunnel to port {target_port}...{RESET}')
     
     cmd = [cloudflared_bin, 'tunnel', '--url', f'http://localhost:{target_port}']
     
@@ -114,7 +141,15 @@ def main():
             print('Check that Docker is running and the app opens at http://localhost:3000.')
             return
 
-        print(f'{GREEN}[2/2] Tunnel active!{RESET}')
+        # Keep draining cloudflared's output in the background for as long as the tunnel runs
+        threading.Thread(target=drain_output, args=(process.stdout,), daemon=True).start()
+
+        print(f'{BLUE}[2/3] Link created, waiting for the tunnel to connect...{RESET}')
+        if wait_until_reachable(public_url):
+            print(f'{GREEN}[3/3] Tunnel active and reachable!{RESET}')
+        else:
+            print(f'{YELLOW}[3/3] The link did not answer within 45s. Check that Docker is running and{RESET}')
+            print(f'{YELLOW}      http://localhost:3000 opens, then try again. Showing the link anyway:{RESET}')
         print_qr(public_url)
 
         print(f'{CYAN}======================================================================{RESET}')
