@@ -64,13 +64,13 @@ def print_qr(url: str):
 def main():
     print_banner()
 
-    # 1. Target Port resolution (prefer port 80/3000 for frontend, or 8000 for backend)
-    target_port = 80
+    # 1. Target Port resolution (the app is served on port 3000; the API is also reachable on 8000)
+    target_port = 3000
     if len(sys.argv) > 1:
         try:
             target_port = int(sys.argv[1])
         except ValueError:
-            target_port = 80
+            target_port = 3000
 
     # 2. Check cloudflared binary
     cloudflared_bin = check_cloudflared()
@@ -111,7 +111,7 @@ def main():
 
         if not public_url:
             print(f'{YELLOW}[!] Could not automatically capture URL from cloudflared output within 20s.{RESET}')
-            print('Check if Docker / frontend is running on port 80 or 8000.')
+            print('Check that Docker is running and the app opens at http://localhost:3000.')
             return
 
         print(f'{GREEN}[2/2] Tunnel active!{RESET}')

@@ -234,4 +234,6 @@ flutter test
 
 ## 🍎 Developing on a Mac
 
+For a step-by-step guide to running the app in Docker on Windows or Mac and sharing it with Cloudflare, see [`STARTUP.md`](STARTUP.md).
+
 For Apple Silicon (M1/M2/M3/M4) or Intel Mac developers, consult [`SETUP_MAC.md`](SETUP_MAC.md) for full Homebrew and Docker Desktop setup steps (Xcode is not required; the app is web-only).
