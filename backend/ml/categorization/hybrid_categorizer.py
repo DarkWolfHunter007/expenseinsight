@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Optional, Tuple
 from ..preprocessing.merchant_normalizer import MerchantNormalizer
 from .classifier import ExpenseClassifier
@@ -11,6 +12,27 @@ class HybridCategorizer:
     4. Configurable Confidence Thresholding and Uncertainty Detection
     5. Explainability Layer
     """
+
+    # A payee is only trusted as "a person" (so a transfer) when it looks like a personal name. The ML
+    # model was trained mostly on synthetic data where a named UPI payee meant a person, so it calls
+    # every unfamiliar payee a transfer with ~99% confidence, even a shop or gibberish.
+    UNVERIFIED_TRANSFER_CONFIDENCE = 0.55
+    _PAYEE_PATTERN = re.compile(r"UPI/(?:DR|CR)/\d+/([^/]+)/")
+    # Short words must match a whole token ("CHIT" must not match the name CHITRA); long ones by prefix
+    # because the bank cuts payee names ("RESTAURA").
+    _BUSINESS_WORDS = {
+        "STORE", "STORES", "MART", "SHOP", "SHOPS", "BOOK", "BOOKS", "CAFE", "TEA", "FOOD", "FOODS", "FUEL",
+        "CHIT", "CHITS", "BAKE", "PAY", "LTD", "PVT", "TECH", "LAB", "LABS", "GYM", "CABS", "TAXI", "AUTO", "SPA", "BAR",
+        "CLOUD", "PLAY", "GOLD", "TOUR", "TOURS", "SWEETS", "HOTEL", "HOTELS", "AGENCY", "CLINIC",
+    }
+    _BUSINESS_PREFIXES = (
+        "MEDICAL", "PHARMA", "BAKE", "PETROL", "RESTAUR", "SUPER", "MARKET", "TRADER", "TRADING", "ENTERPR",
+        "SERVICE", "HOSPITAL", "STATION", "STATIONERY", "TEXTILE", "FASHION", "JEWEL", "FINANCE", "INSURANCE",
+        "SOFTWARE", "SYSTEM", "SOLUTION", "CORPORAT", "PAYMENT", "RECHARGE", "WALLET", "STUDIO", "KITCHEN",
+        "COFFEE", "JUICE", "GROCER", "VEGETABL", "DAIRY", "PRINT", "XEROX", "COMPUTER", "MOBILE", "ELECTRIC",
+        "ELECTRON", "HARDWARE", "TRAVEL", "MOTOR", "GARAGE", "FLOWER", "OPTICAL", "FITNESS", "SALON",
+        "PARLOUR", "SCHOOL", "COLLEGE", "ACADEMY", "INSTITUT", "ASSOCIAT", "SOCIETY", "TRUST", "ENTERTAIN",
+    )
 
     HIGH_CONFIDENCE_THRESHOLD = 0.85
     MEDIUM_CONFIDENCE_THRESHOLD = 0.60
@@ -26,6 +48,37 @@ class HybridCategorizer:
         self.normalizer = normalizer or MerchantNormalizer()
         self.high_threshold = high_threshold
         self.medium_threshold = medium_threshold
+
+    def _brand_words(self) -> set:
+        """First words (4+ letters) of every known merchant alias, e.g. 'google', 'flipkart'."""
+        if not hasattr(self, "_brand_word_cache"):
+            words = set()
+            for data in getattr(self.normalizer, "kb", {}).values():
+                for alias in data.get("aliases", []):
+                    first = alias.split()[0].upper() if alias.split() else ""
+                    if len(first) >= 4 and first.isalpha():
+                        words.add(first)
+            self._brand_word_cache = words
+        return self._brand_word_cache
+
+    def payee_looks_like_person(self, raw_description: str) -> Optional[bool]:
+        """True/False for a UPI narration, None when there is no UPI payee to judge."""
+        match = self._PAYEE_PATTERN.search(raw_description or "")
+        if not match:
+            return None
+        raw_tokens = match.group(1).replace(".", " ").upper().split()
+        # Wrapped lines leave fragments of the payment handle glued to the name ("KANNAN S99", "PM@");
+        # a token that is only digits ("ICGAIFE 3") is a real code and stays as it is.
+        tokens = [re.sub(r"[\d@]+$", "", tk) if re.search(r"[A-Z]", tk) else tk for tk in raw_tokens]
+        if not 1 <= len(tokens) <= 4:
+            return False
+        brands = self._brand_words()
+        for token in tokens:
+            if not token.isalpha() or token in self._BUSINESS_WORDS or token in brands:
+                return False
+            if len(token) >= 5 and token.startswith(self._BUSINESS_PREFIXES):
+                return False
+        return True
 
     def categorize_transaction(
         self,
@@ -61,6 +114,14 @@ class HybridCategorizer:
             source = "ml_classifier"
             prob_dist = ml_probs
             explanation = f"Classified by machine learning model with {confidence*100:.1f}% confidence."
+
+            # Do not trust "Transfers" for a payee that does not look like a person
+            if category == "Transfers" and self.payee_looks_like_person(raw_description) is False:
+                confidence = min(confidence, self.UNVERIFIED_TRANSFER_CONFIDENCE)
+                explanation = (
+                    "The model guessed a transfer, but the payee does not look like a person's name, "
+                    "so it needs a human check."
+                )
 
         # Step 4: Fallback heuristic if no ML model fitted
         else:

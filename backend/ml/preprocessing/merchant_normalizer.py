@@ -496,6 +496,19 @@ class MerchantNormalizer:
                     self._alias_to_canonical[alias_clean] = canonical
                     self._all_aliases.append(alias_clean)
 
+        # Space-insensitive index. Statement narrations wrap in the middle of words ("FLIPKAR T"), and
+        # banks cut payee names to 9 characters ("SWIGGY INSTAMART" becomes "SWIGGY IN"), so match
+        # runs of adjacent tokens joined without spaces against the full alias and its 9-character cut.
+        self._compact_aliases: Dict[str, str] = {}
+        for alias_clean, canonical in self._alias_to_canonical.items():
+            compact = alias_clean.replace(" ", "")
+            if len(compact) >= 6:
+                self._compact_aliases.setdefault(compact, canonical)
+            if len(alias_clean) > 9:
+                cut = alias_clean[:9].replace(" ", "")
+                if len(cut) >= 6:
+                    self._compact_aliases.setdefault(cut, canonical)
+
     def add_user_correction(self, raw_or_cleaned_merchant: str, canonical_name: str, category: Optional[str] = None):
         """Layer 4: Persistent user feedback correction."""
         clean_key = self.text_cleaner.clean(raw_or_cleaned_merchant)
@@ -544,6 +557,15 @@ class MerchantNormalizer:
             canonical = self._alias_to_canonical[best_alias]
             default_cat = self.kb.get(canonical, {}).get("default_category")
             return (canonical, canonical.lower().replace(" ", "_"), default_cat, 0.95)
+
+        # Layer 2b: names broken by a mid-word wrap or cut at 9 characters
+        tokens_for_compact = cleaned_text.split()
+        for width in (1, 2, 3):
+            for start in range(len(tokens_for_compact) - width + 1):
+                canonical = self._compact_aliases.get("".join(tokens_for_compact[start:start + width]))
+                if canonical:
+                    default_cat = self.kb.get(canonical, {}).get("default_category")
+                    return (canonical, canonical.lower().replace(" ", "_"), default_cat, 0.92)
 
         # Layer 3: Fuzzy similarity matching using RapidFuzz
         if self._all_aliases:
