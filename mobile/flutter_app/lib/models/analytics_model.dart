@@ -194,6 +194,11 @@ class AnalyticsSummaryModel {
   final double bankSpending;
   final double cashSpending;
   final double totalSpending;
+  final double bankMoneyOut;
+  final double bankMoneyIn;
+  final double transfersOut;
+  final double transfersIn;
+  final double otherMoneyOut;
   final double monthlyBudget;
   final String? budgetMonth;
   final double budgetSpent;
@@ -225,6 +230,11 @@ class AnalyticsSummaryModel {
     this.bankSpending = 0.0,
     this.cashSpending = 0.0,
     this.totalSpending = 0.0,
+    this.bankMoneyOut = 0.0,
+    this.bankMoneyIn = 0.0,
+    this.transfersOut = 0.0,
+    this.transfersIn = 0.0,
+    this.otherMoneyOut = 0.0,
     this.monthlyBudget = 0.0,
     this.budgetMonth,
     this.budgetSpent = 0.0,
@@ -269,6 +279,11 @@ class AnalyticsSummaryModel {
       bankSpending: (json['bank_spending'] as num?)?.toDouble() ?? 0.0,
       cashSpending: (json['cash_spending'] as num?)?.toDouble() ?? 0.0,
       totalSpending: (json['total_spending'] as num?)?.toDouble() ?? exp,
+      bankMoneyOut: (json['bank_money_out'] as num?)?.toDouble() ?? 0.0,
+      bankMoneyIn: (json['bank_money_in'] as num?)?.toDouble() ?? 0.0,
+      transfersOut: (json['transfers_out'] as num?)?.toDouble() ?? 0.0,
+      transfersIn: (json['transfers_in'] as num?)?.toDouble() ?? 0.0,
+      otherMoneyOut: (json['other_money_out'] as num?)?.toDouble() ?? 0.0,
       monthlyBudget: (json['monthly_budget'] as num?)?.toDouble() ?? 0.0,
       budgetMonth: json['budget_month'],
       budgetSpent: (json['budget_spent'] as num?)?.toDouble() ?? 0.0,

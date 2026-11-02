@@ -20,6 +20,7 @@ import '../widgets/budget_card.dart';
 import '../widgets/category_donut_chart.dart';
 import '../widgets/install_guide_dialog.dart';
 import '../widgets/merchant_ranking_card.dart';
+import '../widgets/money_flow_card.dart';
 import '../widgets/monthly_trend_chart.dart';
 import '../widgets/recurring_subscriptions_card.dart';
 import '../widgets/server_settings_dialog.dart';
@@ -259,6 +260,7 @@ class DashboardScreen extends StatelessWidget {
               // 1. Spending Overview (Total Spending with subtle Bank vs Cash indicators)
               _buildMobileSpendingOverview(context, summary, isDark),
               const SizedBox(height: 16),
+              if (summary != null) MoneyFlowCard(summary: summary),
 
               // 2. Uncertain Transactions Alert Banner (if needed)
               if (uncertainCount > 0) ...[
@@ -424,6 +426,7 @@ class DashboardScreen extends StatelessWidget {
               ],
               _buildMobileSpendingOverview(context, summary, isDark),
               const SizedBox(height: 16),
+              if (summary != null) MoneyFlowCard(summary: summary),
               if (uncertainCount > 0) ...[
                 _buildUncertainAlertBanner(context, uncertainCount),
                 const SizedBox(height: 16),
