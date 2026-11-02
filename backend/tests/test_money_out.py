@@ -46,3 +46,15 @@ def test_a_user_with_no_data_gets_zeros():
     summary = client.get("/analytics/summary", headers={"Authorization": f"Bearer {token}"}).json()
     for key in ("bank_money_out", "bank_money_in", "transfers_out", "transfers_in", "other_money_out"):
         assert summary[key] == 0.0
+
+
+def test_net_cash_flow_is_the_real_change_in_the_account():
+    token = client.post("/auth/guest").json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/statements/seed-sample?bank=HDFC%20Bank", headers=headers)
+    txns = client.get("/transactions?limit=1000", headers=headers).json()
+    money_in = round(sum(t["amount"] for t in txns if t["cr_dr"] == "CR"), 2)
+    money_out = round(sum(t["amount"] for t in txns if t["cr_dr"] == "DR"), 2)
+    summary = client.get("/analytics/summary", headers=headers).json()
+    assert summary["net_cash_flow"] == round(money_in - money_out - summary["cash_spending"], 2)
+    assert summary["this_month_label"]  # names the month the "this month" figure belongs to

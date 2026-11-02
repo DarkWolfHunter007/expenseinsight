@@ -206,6 +206,8 @@ class AnalyticsSummaryResponse(BaseModel):
     transfers_out: float = 0.0
     transfers_in: float = 0.0
     other_money_out: float = 0.0
+    net_cash_flow: float = 0.0
+    this_month_label: str = ""
     monthly_budget: float = 0.0
     budget_month: Optional[str] = None
     budget_spent: float = 0.0

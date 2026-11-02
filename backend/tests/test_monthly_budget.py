@@ -218,10 +218,39 @@ def test_forecast_leaves_out_a_partly_covered_first_month():
     assert "2026-01" not in [str(p) for p in pivot.index]
 
 
-def test_forecast_keeps_partial_months_when_history_is_short():
+def _months(txns, coverage):
+    pivot = _forecaster()._prepare_monthly_category_matrix(txns, coverage)
+    return [str(p) for p in pivot.index]
+
+
+def test_forecast_drops_a_thin_partial_month_when_history_is_short():
+    # January is complete, February has 10 of its 28 days: it must not carry the two-month weighting
     txns = [_txn("2026-01-15", 100), _txn("2026-02-10", 100)]
-    pivot = _forecaster()._prepare_monthly_category_matrix(txns, ("2026-01-01", "2026-02-10"))
-    assert len(pivot) == 2
+    assert _months(txns, ("2026-01-01", "2026-02-10")) == ["2026-01"]
+
+
+def test_forecast_keeps_a_partial_month_that_covers_at_least_half():
+    txns = [_txn("2026-01-15", 100), _txn("2026-02-10", 100)]
+    assert _months(txns, ("2026-01-01", "2026-02-20")) == ["2026-01", "2026-02"]  # 20 of 28 days
+
+
+def test_forecast_treats_an_almost_full_month_as_complete():
+    # a statement that starts on the 2nd still covers 30 of August's 31 days
+    txns = [_txn("2026-08-03", 100), _txn("2026-09-02", 50)]
+    assert _months(txns, ("2026-08-02", "2026-09-03")) == ["2026-08"]
+
+
+def test_forecast_keeps_everything_when_no_month_is_complete():
+    txns = [_txn("2026-01-20", 100), _txn("2026-01-25", 50)]
+    assert _months(txns, ("2026-01-19", "2026-01-26")) == ["2026-01"]
+
+
+def test_forecast_for_a_one_month_statement_ignores_the_three_day_tail():
+    august = [_txn("2026-08-03", 1000), _txn("2026-08-20", 1468)]
+    september = [_txn("2026-09-02", 118)]
+    result = _forecaster().generate_forecast(august + september, ("2026-08-02", "2026-09-03"))
+    assert result["historical_months_count"] == 1
+    assert result["total_forecast"] == 2468.0  # August repeated, not 0.65 x 118 + 0.35 x 2468
 
 
 def test_forecast_explanation_names_arima():

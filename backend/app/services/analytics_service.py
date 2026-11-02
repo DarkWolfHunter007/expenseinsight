@@ -453,6 +453,8 @@ class AnalyticsService:
                 "transfers_out": 0.0,
                 "transfers_in": 0.0,
                 "other_money_out": 0.0,
+                "net_cash_flow": 0.0,
+                "this_month_label": "",
                 **self._compute_budget(user_id, bank_df, cash_df, as_of)
             }
 
@@ -496,6 +498,9 @@ class AnalyticsService:
         transfers_out = _direction_total(transfers_df, "DR")
         transfers_in = _direction_total(transfers_df, "CR")
         other_money_out = round(max(0.0, bank_money_out - bank_spending - transfers_out), 2)
+        # The real change in the account over the period: everything in, minus everything out (bank
+        # withdrawals and cash spending). Unlike "income minus spending" it does not ignore transfers.
+        net_cash_flow = round(bank_money_in - bank_money_out - cash_spending, 2)
 
         net_savings = round(total_income - total_expense, 2)
 
@@ -522,6 +527,7 @@ class AnalyticsService:
                 period_str = "No statements uploaded"
 
         # Month-over-month calculation (combining bank and cash expenses)
+        this_month_label = ""
         all_expenses_list = []
         if not bank_expenses_df.empty:
             all_expenses_list.append(bank_expenses_df[["date_dt", "amount"]])
@@ -532,6 +538,7 @@ class AnalyticsService:
             combined_exp_df = pd.concat(all_expenses_list)
             monthly_exp = combined_exp_df.groupby(combined_exp_df["date_dt"].dt.to_period("M"))["amount"].sum()
             months_list = sorted(monthly_exp.index)
+            this_month_label = months_list[-1].strftime("%b %Y") if months_list else ""
             if len(months_list) >= 2:
                 this_month_spent = float(monthly_exp.loc[months_list[-1]])
                 prev_month_spent = float(monthly_exp.loc[months_list[-2]])
@@ -599,6 +606,8 @@ class AnalyticsService:
             "transfers_out": transfers_out,
             "transfers_in": transfers_in,
             "other_money_out": other_money_out,
+            "net_cash_flow": net_cash_flow,
+            "this_month_label": this_month_label,
             **self._compute_budget(user_id, bank_df, cash_df, as_of)
         }
 
