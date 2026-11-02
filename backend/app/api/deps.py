@@ -1,5 +1,5 @@
+import logging
 import os
-import warnings
 from datetime import datetime, timedelta
 from typing import Optional
 import jwt
@@ -11,10 +11,16 @@ from ..database.session import get_db
 from ..models.db_models import User
 from ..models.schemas import TokenData
 
-_DEV_SECRET_KEY = "expenseinsight-super-secret-key-2026"
-SECRET_KEY = os.getenv("JWT_SECRET_KEY") or _DEV_SECRET_KEY
-if SECRET_KEY == _DEV_SECRET_KEY:
-    warnings.warn("JWT_SECRET_KEY is not set; using the insecure development default. Set it before sharing the app.")
+logger = logging.getLogger("expenseinsight.auth")
+
+_DEFAULT_SECRET_KEY = "expenseinsight-super-secret-key-2026"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or _DEFAULT_SECRET_KEY
+if SECRET_KEY == _DEFAULT_SECRET_KEY:
+    logger.warning(
+        "JWT_SECRET_KEY is not set: using the built-in development secret. "
+        "Anyone who reads the source code can forge login tokens. "
+        "Set JWT_SECRET_KEY to a long random value for any shared or public deployment."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 

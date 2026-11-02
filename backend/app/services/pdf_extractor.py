@@ -117,7 +117,13 @@ class PDFExtractor:
         # If PyMuPDF extraction did not get text, use pdfplumber
         if HAS_PDFPLUMBER and not full_text:
             try:
-                with pdfplumber.open(file_path_or_bytes) as pdf:
+                # pdfplumber needs a path or a file-like object; raw bytes would always fail here
+                plumber_source = (
+                    io.BytesIO(file_path_or_bytes)
+                    if isinstance(file_path_or_bytes, (bytes, bytearray))
+                    else file_path_or_bytes
+                )
+                with pdfplumber.open(plumber_source) as pdf:
                     for page_idx, page in enumerate(pdf.pages):
                         page_text = page.extract_text() or ""
                         all_pages_text.append(page_text)

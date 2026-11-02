@@ -68,6 +68,14 @@ def identify(
     )
 
     if existing_user:
+        # /identify is a passwordless flow. It must never be a back door into an account
+        # that was protected with a password via /auth/register - those require /auth/login.
+        if (existing_user.hashed_password or "").startswith("$2"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account is protected by a password. Please log in with your password."
+            )
+
         is_new_user = False
         target_user = existing_user
 

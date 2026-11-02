@@ -72,6 +72,12 @@ class ForecastingService:
                 f"transaction_id={transaction_id or 'none'} error={str(e)}",
                 exc_info=True
             )
+            # A failed flush/commit leaves the session unusable until rolled back. The caller's own
+            # change was already committed before this point, so this only clears the failed attempt.
+            try:
+                db.rollback()
+            except Exception:
+                logger.error("forecast_refresh_rollback_failed", exc_info=True)
             return None
 
     def generate_user_forecast(self, user_id: str, persist: bool = True) -> Dict[str, Any]:

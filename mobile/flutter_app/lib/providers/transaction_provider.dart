@@ -119,6 +119,10 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   Future<void> updateCategory(String transactionId, String newCategory, {bool applyToFuture = true}) async {
+    // Keep a copy so the optimistic change below can be undone if the server rejects or never receives it
+    final previousTransactions = List<TransactionModel>.from(_transactions);
+    final previousUncertain = List<UncertainReviewModel>.from(_uncertainTransactions);
+
     // Optimistic UI update preserving canonical sourceType and paymentMethod
     final index = _transactions.indexWhere((t) => t.id == transactionId);
     if (index != -1) {
@@ -147,7 +151,14 @@ class TransactionProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    await _api.updateTransactionCategory(transactionId, newCategory, applyToFuture: applyToFuture);
+    final saved = await _api.updateTransactionCategory(transactionId, newCategory, applyToFuture: applyToFuture);
+    if (!saved) {
+      // The change was not stored on the server: show the real state again instead of a phantom edit
+      _transactions = previousTransactions;
+      _uncertainTransactions = previousUncertain;
+      notifyListeners();
+      return;
+    }
     ExpenseSyncCoordinator().notifyExpenseMutated();
   }
 

@@ -126,13 +126,24 @@ def get_model_comparison():
     }
 
 @router.post("/retrain", response_model=ModelRetrainResponse)
-def retrain_model(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def retrain_model(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Handles model retraining requests for the signed-in user.
     In decoupled/Docker mode (OFFLINE_TRAINING_MODE=true) the model weights are NOT changed: the
     user's corrections are only recorded for the next offline training run. The user's own
     merchant rules already apply to their future uploads without any retraining.
+    Running a real training job on the server is expensive, so that mode is limited to registered
+    (non-guest) users.
     """
+    if not OFFLINE_TRAINING_MODE and current_user.is_guest:
+        raise HTTPException(
+            status_code=403,
+            detail="Retraining the model on the server requires a registered (non-guest) account."
+        )
+
     corrections_count = db.query(CategoryCorrection).filter(CategoryCorrection.user_id == current_user.id).count()
     rules_count = db.query(MerchantCategoryRule).filter(MerchantCategoryRule.user_id == current_user.id).count()
     data = DEFAULT_BASELINE_METRICS
