@@ -9,6 +9,7 @@ import 'package:flutter_app/providers/auth_provider.dart';
 import 'package:flutter_app/providers/cash_expense_provider.dart';
 import 'package:flutter_app/providers/forecast_provider.dart';
 import 'package:flutter_app/providers/model_provider.dart';
+import 'package:flutter_app/providers/notification_provider.dart';
 import 'package:flutter_app/providers/statement_provider.dart';
 import 'package:flutter_app/providers/transaction_provider.dart';
 import 'package:flutter_app/screens/onboarding_screen.dart';
@@ -101,6 +102,7 @@ void main() {
           ChangeNotifierProvider<AnalyticsProvider>(create: (_) => AnalyticsProvider()),
           ChangeNotifierProvider<ForecastProvider>(create: (_) => ForecastProvider()),
           ChangeNotifierProvider<ModelProvider>(create: (_) => ModelProvider()),
+          ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ],
         child: const MaterialApp(
           home: OnboardingScreen(),

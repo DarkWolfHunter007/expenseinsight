@@ -44,7 +44,7 @@ void main() {
       await tester.tap(find.byType(Switch));
       await tester.pumpAndSettle();
       expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
-      expect((await SharedPreferences.getInstance()).getBool(BudgetNotificationService.enabledKey), isTrue);
+      expect((await SharedPreferences.getInstance()).getBool(BudgetNotificationService.scopedKey(BudgetNotificationService.enabledKey)), isTrue);
 
       // A brand-new card (as after a reload) reads the saved choice back
       await tester.pumpWidget(_host(const SizedBox()));
@@ -54,7 +54,7 @@ void main() {
     });
 
     testWidgets('says plainly why notifications are not working when the browser cannot show them', (tester) async {
-      SharedPreferences.setMockInitialValues({BudgetNotificationService.enabledKey: true});
+      SharedPreferences.setMockInitialValues({BudgetNotificationService.scopedKey(BudgetNotificationService.enabledKey): true});
       await tester.pumpWidget(_host(const NotificationSettingsCard()));
       await tester.pumpAndSettle();
       expect(find.textContaining('does not support notifications'), findsOneWidget);
@@ -65,7 +65,7 @@ void main() {
 
     testWidgets('lists recent alerts, including ones that could not be shown', (tester) async {
       SharedPreferences.setMockInitialValues({
-        BudgetNotificationService.logKey: [
+        BudgetNotificationService.scopedKey(BudgetNotificationService.logKey): [
           json.encode(NotificationLogEntry(
                   time: DateTime(2026, 11, 2, 10, 30), title: '90% of this month\'s budget used', delivered: true)
               .toJson()),
@@ -101,10 +101,10 @@ void main() {
   });
 
   test('a failed alert is not marked as sent, so it is retried', () async {
-    SharedPreferences.setMockInitialValues({BudgetNotificationService.enabledKey: true});
+    SharedPreferences.setMockInitialValues({BudgetNotificationService.scopedKey(BudgetNotificationService.enabledKey): true});
     // In a test (no browser) nothing can be shown, so maybeNotify must do nothing and remember nothing
     await BudgetNotificationService.instance.maybeNotify(_summary('critical', spent: 1900, pct: 95));
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getStringList(BudgetNotificationService.sentKey) ?? [], isEmpty);
+    expect(prefs.getStringList(BudgetNotificationService.scopedKey(BudgetNotificationService.sentKey)) ?? [], isEmpty);
   });
 }

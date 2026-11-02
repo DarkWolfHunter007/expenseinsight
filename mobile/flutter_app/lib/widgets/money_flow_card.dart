@@ -10,7 +10,10 @@ import '../models/analytics_model.dart';
 class MoneyFlowCard extends StatelessWidget {
   final AnalyticsSummaryModel summary;
 
-  const MoneyFlowCard({super.key, required this.summary});
+  /// Open style: no border or padding, for use inside a dashboard section.
+  final bool open;
+
+  const MoneyFlowCard({super.key, required this.summary, this.open = false});
 
   static final _money = NumberFormat.decimalPattern('en_IN');
 
@@ -23,6 +26,52 @@ class MoneyFlowCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final otherIn = (summary.bankMoneyIn - summary.transfersIn).clamp(0.0, double.infinity);
 
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MONEY IN AND OUT (BANK)',
+          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.9, color: Colors.grey[500]),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 28,
+          runSpacing: 14,
+          children: [
+            _side(
+              label: 'Money out',
+              total: summary.bankMoneyOut,
+              color: const Color(0xFFEF4444),
+              isDark: isDark,
+              parts: [
+                ('Purchases and bills', summary.bankSpending),
+                ('Transfers to people', summary.transfersOut),
+                ('Other (cash withdrawals etc.)', summary.otherMoneyOut),
+              ],
+            ),
+            _side(
+              label: 'Money in',
+              total: summary.bankMoneyIn,
+              color: const Color(0xFF10B981),
+              isDark: isDark,
+              parts: [
+                ('Transfers from people', summary.transfersIn),
+                ('Salary, refunds and other', otherIn),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'These add up to the withdrawals and deposits in your statement. Payments to and from people are '
+          'shown as transfers and are not counted as spending.',
+          style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+        ),
+      ],
+    );
+
+    if (open) return content;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Container(
@@ -33,49 +82,7 @@ class MoneyFlowCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'MONEY IN AND OUT (BANK)',
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.9, color: Colors.grey[500]),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 28,
-              runSpacing: 14,
-              children: [
-                _side(
-                  label: 'Money out',
-                  total: summary.bankMoneyOut,
-                  color: const Color(0xFFEF4444),
-                  isDark: isDark,
-                  parts: [
-                    ('Purchases and bills', summary.bankSpending),
-                    ('Transfers to people', summary.transfersOut),
-                    ('Other (cash withdrawals etc.)', summary.otherMoneyOut),
-                  ],
-                ),
-                _side(
-                  label: 'Money in',
-                  total: summary.bankMoneyIn,
-                  color: const Color(0xFF10B981),
-                  isDark: isDark,
-                  parts: [
-                    ('Transfers from people', summary.transfersIn),
-                    ('Salary, refunds and other', otherIn),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'These add up to the withdrawals and deposits in your statement. Payments to and from people are '
-              'shown as transfers and are not counted as spending.',
-              style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
-            ),
-          ],
-        ),
+        child: content,
       ),
     );
   }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_app/models/analytics_model.dart';
 import 'package:flutter_app/models/budget_settings_model.dart';
 import 'package:flutter_app/services/budget_notification_service.dart';
-import 'package:flutter_app/widgets/budget_banners.dart';
 import 'package:flutter_app/widgets/budget_card.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -94,8 +93,9 @@ void main() {
   });
 
   group('BudgetCard', () {
-    testWidgets('critical shows what is left and flagged categories', (tester) async {
+    testWidgets('critical shows the level, what is left and the flagged categories', (tester) async {
       await tester.pumpWidget(_host(BudgetCard(
+        userKey: 'alice',
         summary: _summary(
           status: 'critical',
           spent: 1850,
@@ -104,61 +104,10 @@ void main() {
         ),
       )));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Only ₹150 left'), findsOneWidget);
+      expect(find.text('Almost at the limit'), findsOneWidget);
+      expect(find.text('₹150'), findsOneWidget); // remaining
       expect(find.text('Food 94%'), findsOneWidget);
       expect(find.text('Travel 20%'), findsNothing);
-    });
-  });
-
-  group('SafeToSpendBanner', () {
-    testWidgets('shows the daily allowance and closes for the day', (tester) async {
-      await tester.pumpWidget(_host(SafeToSpendBanner(summary: _summary(), today: DateTime(2026, 10, 6))));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('You can spend about ₹40 today'), findsOneWidget);
-
-      await tester.tap(find.byIcon(Icons.close_rounded));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('You can spend about'), findsNothing);
-    });
-
-    testWidgets('comes back the next day', (tester) async {
-      SharedPreferences.setMockInitialValues({'safe_to_spend_dismissed': '2026-10-06'});
-      await tester.pumpWidget(_host(SafeToSpendBanner(summary: _summary(), today: DateTime(2026, 10, 7))));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('You can spend about'), findsOneWidget);
-    });
-
-    testWidgets('says there is no room once the budget is exceeded', (tester) async {
-      await tester.pumpWidget(_host(SafeToSpendBanner(summary: _summary(status: 'exceeded', spent: 2500, usedPct: 125))));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('No room left'), findsOneWidget);
-    });
-  });
-
-  group('MonthRecapBanner', () {
-    testWidgets('celebrates a month closed under budget', (tester) async {
-      final recap = LastMonthRecap(month: '2026-09', spent: 1500, budget: 2000, difference: 500, underBudget: true);
-      await tester.pumpWidget(_host(MonthRecapBanner(recap: recap)));
-      await tester.pumpAndSettle();
-      expect(find.text('September closed ₹500 under budget'), findsOneWidget);
-      expect(find.textContaining('spent ₹1500 of ₹2000'), findsOneWidget);
-    });
-
-    testWidgets('reports an overspent month and can be closed', (tester) async {
-      final recap = LastMonthRecap(month: '2026-09', spent: 2600, budget: 2000, difference: -600, underBudget: false);
-      await tester.pumpWidget(_host(MonthRecapBanner(recap: recap)));
-      await tester.pumpAndSettle();
-      expect(find.text('September closed ₹600 over budget'), findsOneWidget);
-
-      await tester.tap(find.byIcon(Icons.close_rounded));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('September closed'), findsNothing);
-    });
-
-    testWidgets('shows nothing without a recap', (tester) async {
-      await tester.pumpWidget(_host(const MonthRecapBanner(recap: null)));
-      await tester.pumpAndSettle();
-      expect(find.byType(Container), findsNothing);
     });
   });
 

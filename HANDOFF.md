@@ -144,6 +144,12 @@ Known limit that remains: a small business with a person-like name (for example 
   to update old rows. It writes a timestamped backup of the database first and never touches rows the
   user categorized. (Earlier versions reused one backup name, so repeated runs overwrote it.)
 
+## 6b. Dashboard and Activity Centre
+
+The dashboard is an "open canvas" (numbered sections, no stacked banners) and notifications live in a per-user
+Activity Centre (bell in the app bar). Design, rules, API and limitations: `docs/ACTIVITY_CENTRE.md`.
+Tests at this point: 186 backend, 105 Flutter.
+
 ## 7. Things that will trip you up
 
 - **Docker Desktop must be running.** The error `dockerDesktopLinuxEngine ... cannot find the file`

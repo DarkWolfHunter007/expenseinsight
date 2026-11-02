@@ -15,16 +15,15 @@ import '../providers/statement_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/add_edit_cash_expense_dialog.dart';
 import '../widgets/bank_statement_header.dart';
-import '../widgets/budget_banners.dart';
-import '../widgets/budget_card.dart';
-import '../widgets/category_donut_chart.dart';
+import '../widgets/dashboard/financial_health_section.dart';
+import '../widgets/dashboard/open_canvas_body.dart';
+import '../widgets/dashboard/review_section.dart';
 import '../widgets/install_guide_dialog.dart';
 import '../widgets/merchant_ranking_card.dart';
 import '../widgets/money_flow_card.dart';
-import '../widgets/monthly_trend_chart.dart';
+import '../widgets/notification_bell.dart';
 import '../widgets/recurring_subscriptions_card.dart';
 import '../widgets/server_settings_dialog.dart';
-import '../widgets/spending_metric_card.dart';
 import '../widgets/transaction_tile.dart';
 import 'budget_settings_screen.dart';
 import 'forecast_screen.dart';
@@ -182,6 +181,7 @@ class DashboardScreen extends StatelessWidget {
               );
             },
           ),
+          const NotificationBell(),
           IconButton(
             onPressed: () => Navigator.push(
               context,
@@ -250,23 +250,34 @@ class DashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // 0. Monthly budget indicator (statement is the baseline)
+              // 0. The month's budget in one block (status, allowance and recap are inline)
               if (summary != null) ...[
-                MonthRecapBanner(recap: summary.lastMonthRecap),
-                BudgetCard(summary: summary),
-                SafeToSpendBanner(summary: summary),
+                FinancialHealthSection(
+                  summary: summary,
+                  onOpenSettings: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
 
               // 1. Spending Overview (Total Spending with subtle Bank vs Cash indicators)
               _buildMobileSpendingOverview(context, summary, isDark),
               const SizedBox(height: 16),
-              if (summary != null) MoneyFlowCard(summary: summary),
-
-              // 2. Uncertain Transactions Alert Banner (if needed)
-              if (uncertainCount > 0) ...[
-                _buildUncertainAlertBanner(context, uncertainCount),
-                const SizedBox(height: 16),
+              if (summary != null) ...[
+                MoneyFlowCard(summary: summary),
               ],
+
+              // 2. Transactions waiting for review: always visible, exact count
+              ReviewSection(
+                items: txnProv.uncertainTransactions,
+                onReview: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReviewUncertainScreen()),
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // 3. AI Forecast Hero Card (Differentiator)
               _buildForecastHeroCard(context, forecast, summary, isDark),
@@ -343,6 +354,7 @@ class DashboardScreen extends StatelessWidget {
               );
             },
           ),
+          const NotificationBell(),
           IconButton(
             onPressed: () => Navigator.push(
               context,
@@ -419,102 +431,33 @@ class DashboardScreen extends StatelessWidget {
                 transactionCount: summary?.totalTransactionsCount ?? 0,
               ),
               const SizedBox(height: 16),
-              if (summary != null) ...[
-                MonthRecapBanner(recap: summary.lastMonthRecap),
-                BudgetCard(summary: summary),
-                SafeToSpendBanner(summary: summary),
-              ],
-              _buildMobileSpendingOverview(context, summary, isDark),
-              const SizedBox(height: 16),
-              if (summary != null) MoneyFlowCard(summary: summary),
-              if (uncertainCount > 0) ...[
-                _buildUncertainAlertBanner(context, uncertainCount),
-                const SizedBox(height: 16),
-              ],
-              _buildForecastHeroCard(context, forecast, summary, isDark),
-              const SizedBox(height: 20),
-              // Metric Cards Grid
-              GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 2.2,
-                children: [
-                  SpendingMetricCard(
-                    title: (summary?.thisMonthLabel ?? '').isNotEmpty ? 'Latest month: ${summary!.thisMonthLabel}' : 'This Month',
-                    amount: summary?.thisMonthSpent ?? 0.0,
-                    trendPercentage: summary?.monthOverMonthChangePct,
-                    icon: Icons.calendar_today_rounded,
-                    accentColor: const Color(0xFF3B82F6),
+              if (summary != null)
+                OpenCanvasBody(
+                  summary: summary,
+                  range: analyticsProv.range,
+                  onRange: analyticsProv.setRange,
+                  months: analyticsProv.allMonthlySpending,
+                  forecast: forecast,
+                  uncertain: txnProv.uncertainTransactions,
+                  onOpenSettings: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
                   ),
-                  SpendingMetricCard(
-                    title: 'Net cash flow',
-                    amount: summary?.netCashFlow ?? 0.0,
-                    subtitle: 'Money in minus money out',
-                    icon: Icons.savings_rounded,
-                    accentColor: const Color(0xFF10B981),
+                  onOpenForecast: () {
+                    if (onOpenForecast != null) {
+                      onOpenForecast!();
+                    } else {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ForecastScreen()));
+                    }
+                  },
+                  onReview: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReviewUncertainScreen()),
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Category Donut Chart
-              _sectionHeader('Spending by Category', 'Category-wise distribution across all sources'),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                  recentTransactions: _buildRecentTransactionsSection(context, recentTransactions, isDark),
+                  merchants: MerchantRankingCard(merchants: summary.topMerchants),
+                  recurring: RecurringSubscriptionsCard(recurringItems: summary.recurringExpenses),
                 ),
-                child: CategoryDonutChart(
-                  categories: summary?.categoriesBreakdown ?? [],
-                  totalExpense: summary?.totalExpense ?? 0.0,
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Monthly Spending Trend
-              _sectionHeader('Monthly Spending Trend', 'Chronological income and expense breakdown'),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                ),
-                child: MonthlyTrendChart(monthlyData: analyticsProv.monthlySpending),
-              ),
-              const SizedBox(height: 24),
-              // Top Merchants
-              _sectionHeader('Top Spending Merchants', 'Normalized merchant rankings'),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                ),
-                child: MerchantRankingCard(merchants: summary?.topMerchants ?? []),
-              ),
-              const SizedBox(height: 24),
-              // Recurring Subscriptions
-              _sectionHeader('Recurring Subscriptions & Bills', 'Detected monthly repeating cycles'),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                ),
-                child: RecurringSubscriptionsCard(recurringItems: summary?.recurringExpenses ?? []),
-              ),
-              const SizedBox(height: 24),
-              _buildRecentTransactionsSection(context, recentTransactions, isDark),
               const SizedBox(height: 32),
             ],
           ),
@@ -989,80 +932,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
-  // COMPONENT: Uncertain Alert Banner
-  // ==========================================
-  Widget _buildUncertainAlertBanner(BuildContext context, int uncertainCount) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ReviewUncertainScreen()),
-        );
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFEF2F2),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFFCA5A5)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Color(0xFFEF4444),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.help_outline_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$uncertainCount Uncertain Transaction${uncertainCount > 1 ? "s" : ""}',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF991B1B),
-                    ),
-                  ),
-                  Text(
-                    'AI categorized with low confidence. Tap to review.',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: const Color(0xFFB91C1C),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF991B1B)),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _sectionHeader(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          subtitle,
-          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
-        ),
-      ],
-    );
-  }
 
   Widget _buildGuestBanner(BuildContext context, bool isDark) {
     return Container(

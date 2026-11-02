@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_constants.dart';
 import '../models/analytics_model.dart';
+import '../models/app_notification.dart';
 import '../models/budget_settings_model.dart';
 import '../models/cash_expense_model.dart';
 import '../models/forecast_model.dart';
@@ -481,6 +482,46 @@ class ApiService {
     } catch (e) {
       debugPrint('API Error (deleteCashExpense): $e');
       return false;
+    }
+  }
+
+  // ----------------- Notifications (Financial Activity Centre) -----------------
+
+  Future<NotificationFeed> getNotifications({String group = 'all', bool includeDismissed = false}) async {
+    final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.notifications}')
+        .replace(queryParameters: {'group': group, 'include_dismissed': includeDismissed.toString()});
+    final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 6));
+    if (response.statusCode == 200) return NotificationFeed.fromJson(json.decode(response.body));
+    throw Exception('Failed to load notifications (HTTP ${response.statusCode})');
+  }
+
+  Future<void> syncNotifications() async {
+    final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.notifications}/sync');
+    final response = await http.post(url, headers: _headers).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to refresh notifications (HTTP ${response.statusCode})');
+    }
+  }
+
+  Future<void> _notificationAction(String id, String action) async {
+    final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.notifications}/$id/$action');
+    final response = await http.post(url, headers: _headers).timeout(const Duration(seconds: 6));
+    if (response.statusCode != 200) {
+      throw Exception('Notification $action failed (HTTP ${response.statusCode})');
+    }
+  }
+
+  Future<void> markNotificationRead(String id) => _notificationAction(id, 'read');
+  Future<void> markNotificationUnread(String id) => _notificationAction(id, 'unread');
+  Future<void> dismissNotification(String id) => _notificationAction(id, 'dismiss');
+  Future<void> restoreNotification(String id) => _notificationAction(id, 'restore');
+
+  Future<void> markAllNotificationsRead({String group = 'all'}) async {
+    final url = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.notifications}/read-all')
+        .replace(queryParameters: {'group': group});
+    final response = await http.post(url, headers: _headers).timeout(const Duration(seconds: 6));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to mark notifications read (HTTP ${response.statusCode})');
     }
   }
 

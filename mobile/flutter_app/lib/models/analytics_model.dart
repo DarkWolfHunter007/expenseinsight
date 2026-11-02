@@ -36,6 +36,8 @@ class MonthlySpendingItem {
   final int transactionCount;
   final double bankExpense;
   final double cashExpense;
+  final double moneyIn;
+  final double moneyOut;
 
   MonthlySpendingItem({
     required this.month,
@@ -46,6 +48,8 @@ class MonthlySpendingItem {
     required this.transactionCount,
     this.bankExpense = 0.0,
     this.cashExpense = 0.0,
+    this.moneyIn = 0.0,
+    this.moneyOut = 0.0,
   });
 
   factory MonthlySpendingItem.fromJson(Map<String, dynamic> json) {
@@ -58,6 +62,8 @@ class MonthlySpendingItem {
       transactionCount: json['transaction_count'] ?? 0,
       bankExpense: (json['bank_expense'] as num?)?.toDouble() ?? 0.0,
       cashExpense: (json['cash_expense'] as num?)?.toDouble() ?? 0.0,
+      moneyIn: (json['money_in'] as num?)?.toDouble() ?? 0.0,
+      moneyOut: (json['money_out'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -212,6 +218,8 @@ class AnalyticsSummaryModel {
   final double safeToSpendToday;
   final List<CategoryBudgetItem> categoryBudgets;
   final LastMonthRecap? lastMonthRecap;
+  final double lastMonthSpent;
+  final String lastMonthLabel;
 
   AnalyticsSummaryModel({
     required this.totalExpense,
@@ -250,6 +258,8 @@ class AnalyticsSummaryModel {
     this.safeToSpendToday = 0.0,
     this.categoryBudgets = const [],
     this.lastMonthRecap,
+    this.lastMonthSpent = 0.0,
+    this.lastMonthLabel = '',
   });
 
   factory AnalyticsSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -304,6 +314,8 @@ class AnalyticsSummaryModel {
               .toList() ??
           [],
       lastMonthRecap: json['last_month_recap'] != null ? LastMonthRecap.fromJson(json['last_month_recap']) : null,
+      lastMonthSpent: (json['last_month_spent'] as num?)?.toDouble() ?? 0.0,
+      lastMonthLabel: json['last_month_label'] ?? '',
     );
   }
 }

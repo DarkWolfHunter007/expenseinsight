@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/analytics_model.dart';
+import 'api_service.dart';
 import 'browser_notification_stub.dart' if (dart.library.js_interop) 'browser_notification_web.dart' as browser;
 
 class BudgetAlert {
@@ -133,13 +134,17 @@ class BudgetNotificationService {
   static const logKey = 'budget_notifications_log';
   static const _maxLog = 8;
 
+  /// The saved choice, the per-month "already sent" list and the alert log belong to the signed-in account, so
+  /// a different session on the same browser neither inherits them nor is silenced by them.
+  static String scopedKey(String base, [String? userId]) => '$base:${userId ?? ApiService().userId ?? 'anonymous'}';
+
   bool get supported => browser.browserNotificationsSupported;
   String get permission => browser.browserNotificationPermission();
 
   Future<bool> isEnabled() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(enabledKey) ?? false;
+      return prefs.getBool(scopedKey(enabledKey)) ?? false;
     } catch (_) {
       return false;
     }
@@ -148,7 +153,7 @@ class BudgetNotificationService {
   Future<List<NotificationLogEntry>> readLog() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList(logKey) ?? [];
+      final raw = prefs.getStringList(scopedKey(logKey)) ?? [];
       return raw.map((e) => NotificationLogEntry.fromJson(json.decode(e))).toList();
     } catch (_) {
       return [];
@@ -165,9 +170,9 @@ class BudgetNotificationService {
   Future<void> _record(NotificationLogEntry entry) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList(logKey) ?? [];
+      final raw = prefs.getStringList(scopedKey(logKey)) ?? [];
       raw.insert(0, json.encode(entry.toJson()));
-      await prefs.setStringList(logKey, raw.take(_maxLog).toList());
+      await prefs.setStringList(scopedKey(logKey), raw.take(_maxLog).toList());
     } catch (_) {}
   }
 
@@ -176,7 +181,7 @@ class BudgetNotificationService {
   Future<void> setEnabled(bool enabled) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(enabledKey, enabled);
+      await prefs.setBool(scopedKey(enabledKey), enabled);
     } catch (_) {}
     if (enabled && supported && permission == 'default') {
       await browser.requestBrowserNotificationPermission();
@@ -208,7 +213,7 @@ class BudgetNotificationService {
       if (!supported || permission != 'granted' || !await isEnabled()) return;
       final prefs = await SharedPreferences.getInstance();
       final month = summary.budgetMonth ?? '';
-      final sent = (prefs.getStringList(sentKey) ?? []).where((k) => k.startsWith('$month|')).toSet();
+      final sent = (prefs.getStringList(scopedKey(sentKey)) ?? []).where((k) => k.startsWith('$month|')).toSet();
 
       for (final alert in BudgetAlertPlanner.plan(summary, sent)) {
         final problem = await browser.showBrowserNotification(alert.title, alert.body);
@@ -220,7 +225,7 @@ class BudgetNotificationService {
         ));
         if (problem == null) sent.add(alert.key);
       }
-      await prefs.setStringList(sentKey, sent.toList());
+      await prefs.setStringList(scopedKey(sentKey), sent.toList());
     } catch (e) {
       debugPrint('[BudgetNotificationService] $e');
     }

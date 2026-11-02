@@ -8,6 +8,7 @@ import 'providers/budget_provider.dart';
 import 'providers/cash_expense_provider.dart';
 import 'providers/forecast_provider.dart';
 import 'providers/model_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/statement_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'screens/main_navigation_screen.dart';
@@ -25,6 +26,8 @@ void main() async {
   final analyticsProvider = AnalyticsProvider();
   final forecastProvider = ForecastProvider();
   final modelProvider = ModelProvider();
+  final notificationProvider = NotificationProvider();
+  analyticsProvider.onSummaryLoaded = notificationProvider.sync;
 
   // Onboarding loads this data after sign-in, so a restored session must load it here.
   if (authProvider.isAuthenticated && !authProvider.user!.isGuest) {
@@ -47,6 +50,7 @@ void main() async {
         ChangeNotifierProvider.value(value: forecastProvider),
         ChangeNotifierProvider.value(value: modelProvider),
         ChangeNotifierProvider(create: (_) => BudgetProvider()),
+        ChangeNotifierProvider.value(value: notificationProvider),
       ],
       child: const ExpenseInsightApp(),
     ),
