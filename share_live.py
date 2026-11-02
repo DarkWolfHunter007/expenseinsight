@@ -4,8 +4,9 @@ import sys
 import time
 import subprocess
 import shutil
+import socket
+import struct
 import threading
-import urllib.request
 
 # Ensure UTF-8 console output for beautiful ASCII QR rendering
 if sys.platform == 'win32':
@@ -48,29 +49,58 @@ def check_cloudflared():
             return prog_path
     return path
 
-def drain_output(stream):
+def drain_output(stream, connected: threading.Event):
     """Keep reading cloudflared's output. If nobody reads it the pipe fills up, cloudflared freezes
-    before it finishes connecting, and the public link shows a Cloudflare 530 error forever."""
+    before it finishes connecting, and the public link shows a Cloudflare 530 error forever.
+    Sets `connected` as soon as cloudflared reports that the tunnel is registered."""
     try:
-        for _ in stream:
-            pass
+        for line in stream:
+            if 'Registered tunnel connection' in line:
+                connected.set()
     except Exception:
         pass
 
 
-def wait_until_reachable(url: str, timeout: int = 45) -> bool:
-    """Polls the public link until it answers, so the QR code is only shown once it really works."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+def resolves_on_public_dns(host: str, server: str = '1.1.1.1', timeout: float = 2.0) -> bool:
+    """Asks Cloudflare's DNS directly whether the new link exists yet.
+
+    Never ask this PC's own resolver: a lookup that arrives a moment too early is answered "no such
+    name", Windows remembers that for about a minute, and neither this script nor your browser can
+    open the link until it expires."""
+    query_id = os.urandom(2)
+    header = query_id + struct.pack('!HHHHH', 0x0100, 1, 0, 0, 0)
+    question = b''.join(bytes([len(part)]) + part.encode() for part in host.split('.')) + b'\x00' + struct.pack('!HH', 1, 1)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.settimeout(timeout)
+        sock.sendto(header + question, (server, 53))
+        data, _ = sock.recvfrom(512)
+    if data[:2] != query_id:
+        return False
+    rcode = data[3] & 0x0F
+    answers = struct.unpack('!H', data[6:8])[0]
+    return rcode == 0 and answers > 0
+
+
+def announce_when_ready(url: str, give_up_after: int = 240):
+    """Runs in the background and prints a green check once the new link exists in public DNS.
+
+    A brand-new trycloudflare.com name takes anywhere from about 8 to 60+ seconds to appear, and that
+    delay is on Cloudflare's side. Opening the link before then shows a Cloudflare 530 error."""
+    host = url.replace('https://', '')
+    started = time.time()
+    dns_errors = 0
+    while time.time() - started < give_up_after:
         try:
-            req = urllib.request.Request(url + '/health', headers={'User-Agent': 'expenseinsight-share'})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                if resp.status == 200:
-                    return True
-        except Exception:
-            pass
-        time.sleep(2)
-    return False
+            if resolves_on_public_dns(host):
+                print(f'\n{GREEN}{BOLD}\u2705 The link is working now ({int(time.time() - started)}s after the tunnel connected): {url}{RESET}')
+                return
+        except OSError:
+            dns_errors += 1
+            if dns_errors >= 3:  # public DNS is blocked on this network, so we cannot tell
+                print(f'\n{YELLOW}Could not check the link automatically. Try opening it in a minute.{RESET}')
+                return
+        time.sleep(1)
+    print(f'\n{YELLOW}The link still is not reachable after {give_up_after}s. Stop (Ctrl+C) and run the script again.{RESET}')
 
 
 def print_qr(url: str):
@@ -142,15 +172,18 @@ def main():
             return
 
         # Keep draining cloudflared's output in the background for as long as the tunnel runs
-        threading.Thread(target=drain_output, args=(process.stdout,), daemon=True).start()
+        connected = threading.Event()
+        threading.Thread(target=drain_output, args=(process.stdout, connected), daemon=True).start()
 
-        print(f'{BLUE}[2/3] Link created, waiting for the tunnel to connect...{RESET}')
-        if wait_until_reachable(public_url):
-            print(f'{GREEN}[3/3] Tunnel active and reachable!{RESET}')
+        print(f'{BLUE}[2/3] Link created, connecting the tunnel...{RESET}')
+        if connected.wait(30):
+            print(f'{GREEN}[3/3] Tunnel connected.{RESET}')
         else:
-            print(f'{YELLOW}[3/3] The link did not answer within 45s. Check that Docker is running and{RESET}')
-            print(f'{YELLOW}      http://localhost:3000 opens, then try again. Showing the link anyway:{RESET}')
+            print(f'{YELLOW}[3/3] cloudflared has not confirmed the connection yet, showing the link anyway.{RESET}')
         print_qr(public_url)
+        print(f'{YELLOW}{BOLD}\u23f3 A new link needs about 10 to 60 seconds to appear on the internet.{RESET}')
+        print(f'{YELLOW}   Wait for the green check below before opening it, or you will see a Cloudflare 530 error.{RESET}')
+        threading.Thread(target=announce_when_ready, args=(public_url,), daemon=True).start()
 
         print(f'{CYAN}======================================================================{RESET}')
         print(f'{BOLD}Tunnel is live! Press Ctrl+C in this terminal to stop sharing.{RESET}')

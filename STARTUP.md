@@ -119,6 +119,10 @@ python share_live.py
 
 Good to know:
 - The link **changes every time** you start the tunnel and is meant for testing, not permanent use.
+- **A brand-new link needs 10 to 60+ seconds to start working.** That delay is on Cloudflare's side
+  and can't be shortened. `share_live.py` shows the link and QR code straight away, then prints a
+  green check when the link is ready. Opening it earlier shows a Cloudflare 530 error. A permanent
+  link (Option B) has no such wait.
 - It is HTTPS, so browser notifications for budget alerts work for the people you share it with.
 
 ### Option B: Permanent link on your own domain (free Cloudflare account + a domain)
