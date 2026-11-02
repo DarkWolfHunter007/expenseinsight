@@ -28,10 +28,10 @@ next-month forecast. Cash expenses can be added by hand.
 | | |
 |---|---|
 | Branch | `main`, working tree clean |
-| Pushed? | **No. 6 commits are ahead of `origin/main`** (last pushed: `6b7bfa2`). Ask the owner before pushing. |
-| Tests | Backend `pytest backend/tests` (141 passed at handoff), Flutter `flutter test` (75 passed at handoff), `flutter analyze` clean |
+| Pushed? | **No. Several commits are ahead of `origin/main`** (last pushed: `6b7bfa2`). Ask the owner before pushing. |
+| Tests | Backend `pytest backend/tests` (165 passed at handoff), Flutter `flutter test` (76 passed at handoff), `flutter analyze` clean |
 | Docker | Running and healthy with the latest code: `http://localhost:3000` |
-| In progress | Nothing half-edited. The fix list in section 6 is **investigated but not started**. |
+| In progress | Nothing half-edited. The four problems the audit found (old section 6) are **fixed and deployed**. |
 
 Recent commits (newest first): web bundle rebuild, ChatGPT comparison tool, "Money in and out" dashboard
 card, backend money-out fields, notification settings, categorization fix, share-script fixes,
@@ -103,54 +103,30 @@ docs/                          CHATGPT_VERIFICATION.md and older audit notes
    amounts, dates, directions, balances; money in/out reconcile to the closing balance). The weak part
    is **classification**, listed next.
 
-## 6. Known problems and what to do next (priority order)
+## 6. What the audit found, and what was done
 
-### P1. Merchant matching gives wrong merchants (confirmed, root causes found)
+An independent audit of a real 98-row Canara statement (extraction was perfect) found four real problems.
+All four are fixed, covered by tests, and deployed:
 
-Evidence from the audited statement: a payment from a person became "Vodafone Idea / Bills / income",
-another became "Vodafone Idea", one became "H&M", one became "Metro Rail".
+1. **Wrong merchants.** Matching read the whole narration, so a stray "vi" in a reference hash became
+   Vodafone Idea, an address became Metro Rail, and a short alias ("h and m") fuzzy-matched anything.
+   Fixed in `merchant_normalizer.py`: match on the **payee only** (`extract_payee`), no substring match on
+   aliases under 3 letters, fuzzy match only aliases of 6+ letters and by whole-string similarity
+   (`fuzz.ratio`, because `token_set_ratio` made "google in" match "google youtube"), and a truncated-name
+   key is only added when the cut ends inside a second word. The merchant key no longer contains the bank code.
+2. **Person-vs-business rule gaps** (`hybrid_categorizer.payee_profile`): handles plurals (`FUELS`),
+   words broken by a wrap (`BARBEC UE`), the `M/S` prefix, business payment handles (`STATICQR`, `DQR`,
+   `OKBIZ`, ...) even when the PDF breaks them with a space, and gives keyword category hints
+   (bakery/hotel -> Food, fuel -> Fuel, medical -> Healthcare, textile/book/pet -> Shopping, ...) at medium
+   confidence. A business with no hint goes to the review list.
+3. **Forecast over-weighting a thin month** (`forecaster.py`): a month with at least 85% of its days
+   covered counts as complete; with a short history a partial month under 50% coverage is dropped.
+4. **Dashboard calculations:** "Net Savings" is replaced by **Net cash flow** (money in - money out - cash
+   spending, which equals the real change in the account); "This Month" is labelled with its month; the
+   Total spending card says what it excludes.
 
-Root causes (all confirmed in code):
-1. `merchant_normalizer.normalize()` matches aliases against the **whole cleaned narration**, including
-   the trailing hash and address text. The 2-letter alias `vi` matches a stray "vi" in the junk, and an
-   address ending "...bangalore" matches a Metro Rail alias.
-2. **Regression from commit `6b7bfa2`:** the 9-character-cut index turns the alias "bangalore metro" into
-   the generic key `bangalore`. Only add a cut key when the cut ends inside a second word.
-3. Fuzzy matching (`token_set_ratio`) lets very short aliases ("h and m") match almost anything.
-
-Planned fix (not started):
-- Match on the **payee only**: for `UPI/(DR|CR)/<ref>/<payee>/<bank>/...` use the payee text. Use the
-  payee (without the bank code) for the merchant key, which also stops one person splitting across banks.
-- Substring matching: skip aliases shorter than 3 letters. Fuzzy matching: only aliases of 6+ letters.
-- Cut keys only when the cut ends mid-way through a second word.
-
-### P2. Person-versus-business rule has gaps (`hybrid_categorizer.payee_looks_like_person`)
-
-Misses seen: `ANN FUELS` (plural), `BARBEC UE` (word broken by a wrap), `M/S.SOUTH` (the payee regex
-splits on `/`), pet shops, QR-code payments. Planned: add plural/stem words, test the payee with spaces
-removed, treat an `M/S` prefix as a business, treat payment handles such as `STATICQR`, `DQR`, `OKBIZ*`,
-`BHARATPE`, `.PAYU`, `RZP` as business signals, and add keyword -> category hints (bakery/hotel -> Food,
-fuel -> Fuel, medical -> Healthcare, textile/fashion/store -> Shopping, supermarket -> Groceries) at
-medium confidence so obvious businesses are not left uncategorized. Names that look like people but are
-small businesses (for example a restaurant called "ZAM ZAM") cannot be told apart; that is a known limit.
-
-### P3. Forecast over-weights a nearly empty month
-
-With under 3 complete months the code keeps every partial month, so a month with 3 days of data gets
-65% of the weight (a statement ending on the 3rd gave a forecast driven by a 3-day September).
-Planned: treat a month as complete when at least 85% of its days are covered; drop a partial month under
-50% coverage whenever at least one complete month remains. Update `forecaster.py` and its tests
-(`test_keeps_partial_months_when_history_is_short` will need a new expectation).
-Note: the prompt given to ChatGPT said "only complete months are used", which overstated the rule.
-
-### P4. Dashboard wording and one wrong number
-
-- **"Net Savings" is misleading:** it is income minus spending and ignores transfers, so it can disagree
-  with the real change in the account. Add `net_cash_flow = bank money in - bank money out - cash spending`
-  to the summary and show it ("Money in minus money out").
-- **"This Month"** is the latest month in the data, not the calendar month, and says so nowhere. Label it
-  (for example "Latest month, Sep 2026").
-- Under "Total spending", add a caption that transfers to people are excluded, with the amount.
+Known limit that remains: a small business with a person-like name (for example a restaurant called
+"ZAM ZAM") cannot be told apart from a person and stays a transfer.
 
 ### Backlog / limitations (lower priority)
 
@@ -164,8 +140,9 @@ Note: the prompt given to ChatGPT said "only complete months are used", which ov
 - `/auth/identify` is passwordless: anyone who knows an email can open that account. Put Cloudflare
   Access in front before sharing publicly (see `STARTUP.md`).
 - Stored transactions keep the categories they were given at upload. After changing the categorizer,
-  run `python tools/recategorize.py --email <email>` (dry run) and add `--apply` to update old rows
-  (it backs up the database and never touches rows the user categorized).
+  stop the backend, run `python tools/recategorize.py --email <email>` (dry run) and add `--apply`
+  to update old rows. It writes a timestamped backup of the database first and never touches rows the
+  user categorized. (Earlier versions reused one backup name, so repeated runs overwrote it.)
 
 ## 7. Things that will trip you up
 
@@ -197,8 +174,7 @@ python share_live.py                                   # public Cloudflare link 
 
 ## 9. Open decisions for the owner
 
-1. Push the 6 local commits to GitHub `main`?
-2. Go ahead with P1 to P4 above (merchant matching, person rule, forecast, dashboard) in that order?
-3. Should a payee that cannot be told apart from a person (for example a small restaurant) go to the
+1. Push the local commits to GitHub `main`?
+2. Should a payee that cannot be told apart from a person (for example a small restaurant) go to the
    review list (more reviewing for the user) or stay a transfer (some spending missed)? Today it stays
    a transfer.

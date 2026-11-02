@@ -12,6 +12,7 @@ Stop the backend first when applying (docker compose stop backend) and start it 
 import argparse
 import collections
 import os
+import datetime
 import shutil
 import sqlite3
 import sys
@@ -66,7 +67,7 @@ def main():
         print("\nDry run only. Add --apply to write these changes.")
         return
 
-    backup = args.db + ".bak-before-recategorize"
+    backup = f"{args.db}.bak-before-recategorize-{datetime.datetime.now():%Y%m%d-%H%M%S}"
     shutil.copy(args.db, backup)
     for row, res in changes:
         db.execute(
