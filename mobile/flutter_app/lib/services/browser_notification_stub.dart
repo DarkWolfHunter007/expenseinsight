@@ -6,4 +6,5 @@ String browserNotificationPermission() => 'unsupported';
 
 Future<String> requestBrowserNotificationPermission() async => 'unsupported';
 
-void showBrowserNotification(String title, String body) {}
+Future<String?> showBrowserNotification(String title, String body) async =>
+    'Notifications are only available in a web browser.';

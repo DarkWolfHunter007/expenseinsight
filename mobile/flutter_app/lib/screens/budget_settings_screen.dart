@@ -6,7 +6,7 @@ import '../config/category_colors.dart';
 import '../models/budget_settings_model.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/budget_provider.dart';
-import '../services/budget_notification_service.dart';
+import '../widgets/notification_settings_card.dart';
 
 class _LimitRow {
   String category;
@@ -25,10 +25,8 @@ class BudgetSettingsScreen extends StatefulWidget {
 class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   final _monthlyController = TextEditingController();
   final List<_LimitRow> _rows = [];
-  final _notifications = BudgetNotificationService.instance;
 
   bool _auto = true;
-  bool _notificationsOn = false;
   bool _ready = false;
   String? _error;
 
@@ -55,7 +53,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   Future<void> _load() async {
     final provider = context.read<BudgetProvider>();
     await provider.fetchSettings();
-    final enabled = await _notifications.isEnabled();
     if (!mounted) return;
     final s = provider.settings;
     setState(() {
@@ -64,7 +61,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       _rows
         ..clear()
         ..addAll(s.categoryLimits.entries.map((e) => _LimitRow(e.key, e.value.toStringAsFixed(0))));
-      _notificationsOn = enabled && _notifications.permission == 'granted';
       _ready = true;
     });
   }
@@ -116,19 +112,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       navigator.pop();
     } else {
       setState(() => _error = budget.errorMessage ?? 'Could not save. Please try again.');
-    }
-  }
-
-  Future<void> _toggleNotifications(bool value) async {
-    final result = await _notifications.setEnabled(value);
-    if (!mounted) return;
-    setState(() => _notificationsOn = result);
-    if (value && !result) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notifications are blocked. Allow them for this site in your browser settings.')),
-      );
-    } else if (result) {
-      _notifications.sendTest();
     }
   }
 
@@ -244,21 +227,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                           _TierChip('over 100%  exceeded', Color(0xFFEF4444)),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _notificationsOn,
-                        activeThumbColor: const Color(0xFF10B981),
-                        onChanged: _notifications.supported ? _toggleNotifications : null,
-                        title: Text('Browser notifications',
-                            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                          _notifications.supported
-                              ? 'Get a notification the first time you reach each level in a month.'
-                              : 'Not available in this browser or app.',
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
-                        ),
-                      ),
+                      const SizedBox(height: 12),
+                      NotificationSettingsCard(summary: summary),
                     ],
                   ),
                 ),

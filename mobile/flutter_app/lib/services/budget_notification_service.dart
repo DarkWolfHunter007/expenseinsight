@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,16 +61,77 @@ class BudgetAlertPlanner {
     }
     return alerts;
   }
+
+  /// What the user can expect next, in plain words, for the settings screen.
+  static String describeNext(AnalyticsSummaryModel summary) {
+    if (summary.budgetStatus == 'none' || summary.monthlyBudget <= 0) {
+      return 'No budget is set yet, so there is nothing to alert on.';
+    }
+    final limit = summary.monthlyBudget;
+    switch (summary.budgetStatus) {
+      case 'on_track':
+        return 'You are on track (${summary.budgetUsedPct.toStringAsFixed(0)}% used), so no alert is due yet. '
+            'You will be notified at 80% (${_money(limit * 0.8)}), 90% (${_money(limit * 0.9)}) '
+            'and when you pass ${_money(limit)}.';
+      case 'warning':
+        return 'Past 80% (${_money(summary.budgetSpent)} of ${_money(limit)}). Next alerts: 90% (${_money(limit * 0.9)}) '
+            'and when you pass ${_money(limit)}.';
+      case 'critical':
+        return 'Past 90% (${_money(summary.budgetSpent)} of ${_money(limit)}). Next alert: when you pass ${_money(limit)}.';
+      default:
+        return 'Over budget (${_money(summary.budgetSpent)} of ${_money(limit)}). All of this month\'s alerts have fired.';
+    }
+  }
 }
 
-/// Shows browser notifications when a budget tier is crossed. Off until the user turns it on in
-/// Budget & Alerts and grants the browser permission.
+/// One line of the alert log: what was sent (or why it was not) and when.
+class NotificationLogEntry {
+  final DateTime time;
+  final String title;
+  final bool delivered;
+  final String? problem;
+
+  const NotificationLogEntry({required this.time, required this.title, required this.delivered, this.problem});
+
+  Map<String, dynamic> toJson() =>
+      {'t': time.toIso8601String(), 'title': title, 'ok': delivered, if (problem != null) 'problem': problem};
+
+  factory NotificationLogEntry.fromJson(Map<String, dynamic> json) => NotificationLogEntry(
+        time: DateTime.tryParse(json['t'] ?? '') ?? DateTime.now(),
+        title: json['title'] ?? '',
+        delivered: json['ok'] ?? false,
+        problem: json['problem'],
+      );
+}
+
+/// Browser state the settings screen shows, read in one go.
+class NotificationStatus {
+  final bool supported;
+  final String permission; // granted | denied | default | unsupported
+  final bool enabled; // the saved on/off choice, independent of the browser permission
+  final List<NotificationLogEntry> log;
+
+  const NotificationStatus({
+    required this.supported,
+    required this.permission,
+    required this.enabled,
+    required this.log,
+  });
+
+  /// True only when an alert would really be shown: wanted, supported and allowed.
+  bool get working => enabled && supported && permission == 'granted';
+}
+
+/// Shows browser notifications when a budget tier is crossed. The on/off choice is saved on this
+/// browser and survives reloads; the browser's own permission is separate and shown next to it.
 class BudgetNotificationService {
   static final BudgetNotificationService instance = BudgetNotificationService._();
   BudgetNotificationService._();
 
   static const enabledKey = 'budget_notifications_enabled';
   static const sentKey = 'budget_notifications_sent';
+  static const logKey = 'budget_notifications_log';
+  static const _maxLog = 8;
 
   bool get supported => browser.browserNotificationsSupported;
   String get permission => browser.browserNotificationPermission();
@@ -82,26 +145,64 @@ class BudgetNotificationService {
     }
   }
 
-  /// Turns notifications on (asking the browser for permission) or off. Returns the resulting state.
-  Future<bool> setEnabled(bool enabled) async {
-    var result = enabled;
-    if (enabled) {
-      var perm = permission;
-      if (perm == 'default') perm = await browser.requestBrowserNotificationPermission();
-      result = perm == 'granted';
-    }
+  Future<List<NotificationLogEntry>> readLog() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(enabledKey, result);
+      final raw = prefs.getStringList(logKey) ?? [];
+      return raw.map((e) => NotificationLogEntry.fromJson(json.decode(e))).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<NotificationStatus> status() async => NotificationStatus(
+        supported: supported,
+        permission: permission,
+        enabled: await isEnabled(),
+        log: await readLog(),
+      );
+
+  Future<void> _record(NotificationLogEntry entry) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList(logKey) ?? [];
+      raw.insert(0, json.encode(entry.toJson()));
+      await prefs.setStringList(logKey, raw.take(_maxLog).toList());
     } catch (_) {}
-    return result;
   }
 
-  void sendTest() {
-    browser.showBrowserNotification('ExpenseInsight alerts are on', 'You\'ll be notified at 80%, 90% and when you exceed your budget.');
+  /// Saves the on/off choice. It is saved even when the browser permission is missing, so the toggle
+  /// never jumps back; turning it on also asks the browser for permission if that has not been asked.
+  Future<void> setEnabled(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(enabledKey, enabled);
+    } catch (_) {}
+    if (enabled && supported && permission == 'default') {
+      await browser.requestBrowserNotificationPermission();
+    }
   }
 
-  /// Fires any alerts that are newly due for [summary]. Never throws.
+  /// Asks the browser for permission (it may show a prompt). Returns the resulting permission.
+  Future<String> requestPermission() => browser.requestBrowserNotificationPermission();
+
+  /// Sends a test notification. Returns null on success, or what went wrong.
+  Future<String?> sendTest() async {
+    final problem = await browser.showBrowserNotification(
+      'ExpenseInsight test notification',
+      'If you can read this, budget alerts will reach you at 80%, 90% and when you pass your limit.',
+    );
+    await _record(NotificationLogEntry(
+      time: DateTime.now(),
+      title: 'Test notification',
+      delivered: problem == null,
+      problem: problem,
+    ));
+    return problem;
+  }
+
+  /// Fires any alerts that are newly due for [summary]. Never throws. An alert that could not be shown
+  /// is not marked as sent, so it is tried again the next time the dashboard refreshes.
   Future<void> maybeNotify(AnalyticsSummaryModel summary) async {
     try {
       if (!supported || permission != 'granted' || !await isEnabled()) return;
@@ -109,10 +210,15 @@ class BudgetNotificationService {
       final month = summary.budgetMonth ?? '';
       final sent = (prefs.getStringList(sentKey) ?? []).where((k) => k.startsWith('$month|')).toSet();
 
-      final due = BudgetAlertPlanner.plan(summary, sent);
-      for (final alert in due) {
-        browser.showBrowserNotification(alert.title, alert.body);
-        sent.add(alert.key);
+      for (final alert in BudgetAlertPlanner.plan(summary, sent)) {
+        final problem = await browser.showBrowserNotification(alert.title, alert.body);
+        await _record(NotificationLogEntry(
+          time: DateTime.now(),
+          title: alert.title,
+          delivered: problem == null,
+          problem: problem,
+        ));
+        if (problem == null) sent.add(alert.key);
       }
       await prefs.setStringList(sentKey, sent.toList());
     } catch (e) {
