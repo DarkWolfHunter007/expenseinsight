@@ -448,6 +448,11 @@ class AnalyticsService:
                 "bank_spending": 0.0,
                 "cash_spending": 0.0,
                 "total_spending": 0.0,
+                "bank_money_out": 0.0,
+                "bank_money_in": 0.0,
+                "transfers_out": 0.0,
+                "transfers_in": 0.0,
+                "other_money_out": 0.0,
                 **self._compute_budget(user_id, bank_df, cash_df, as_of)
             }
 
@@ -477,6 +482,20 @@ class AnalyticsService:
         # Transfers: neutral money movements
         transfers_df = AccountingPolicy.filter_transfers(bank_in_range_df)
         total_transfers = round(float(transfers_df["amount"].sum()), 2) if not transfers_df.empty and "amount" in transfers_df.columns else 0.0
+
+        # Everything the bank statement shows leaving and entering the account (what the PDF's own
+        # "total withdrawals" / "total deposits" add up to), split into purchases, transfers and the rest
+        def _direction_total(frame: pd.DataFrame, direction: str) -> float:
+            if frame.empty or "amount" not in frame.columns or "cr_dr" not in frame.columns:
+                return 0.0
+            side = frame[frame["cr_dr"].astype(str).str.upper() == direction]
+            return round(float(side["amount"].sum()), 2)
+
+        bank_money_out = _direction_total(bank_in_range_df, "DR")
+        bank_money_in = _direction_total(bank_in_range_df, "CR")
+        transfers_out = _direction_total(transfers_df, "DR")
+        transfers_in = _direction_total(transfers_df, "CR")
+        other_money_out = round(max(0.0, bank_money_out - bank_spending - transfers_out), 2)
 
         net_savings = round(total_income - total_expense, 2)
 
@@ -575,6 +594,11 @@ class AnalyticsService:
             "bank_spending": round(bank_spending, 2),
             "cash_spending": round(cash_spending, 2),
             "total_spending": total_spending,
+            "bank_money_out": bank_money_out,
+            "bank_money_in": bank_money_in,
+            "transfers_out": transfers_out,
+            "transfers_in": transfers_in,
+            "other_money_out": other_money_out,
             **self._compute_budget(user_id, bank_df, cash_df, as_of)
         }
 

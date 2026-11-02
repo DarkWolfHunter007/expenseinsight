@@ -201,6 +201,11 @@ class AnalyticsSummaryResponse(BaseModel):
     bank_spending: float = 0.0
     cash_spending: float = 0.0
     total_spending: float = 0.0
+    bank_money_out: float = 0.0
+    bank_money_in: float = 0.0
+    transfers_out: float = 0.0
+    transfers_in: float = 0.0
+    other_money_out: float = 0.0
     monthly_budget: float = 0.0
     budget_month: Optional[str] = None
     budget_spent: float = 0.0
